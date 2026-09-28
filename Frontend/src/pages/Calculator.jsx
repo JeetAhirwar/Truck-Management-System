@@ -622,7 +622,12 @@ export default function Calculator() {
                     placeholder="3200"
                     value={form.tollCost}
                     onChange={set('tollCost')}
-                    helperText={hasRoute ? 'Fallback if TollGuru is down' : ' '}
+                    disabled={hasRoute}
+                    helperText={
+                      hasRoute
+                        ? 'Auto — TollGuru with ₹3/km fallback'
+                        : 'Used directly in the profit'
+                    }
                     slotProps={{ htmlInput: { min: 0, step: 'any' } }}
                   />
                 </Stack>

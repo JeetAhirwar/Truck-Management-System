@@ -17,6 +17,7 @@ import {
   LocalGasStation,
   Save,
   Settings as SettingsIcon,
+  AltRoute,
 } from '@mui/icons-material';
 import api from '../utils/api';
 import { PageHeader } from '../components/ui';
@@ -27,6 +28,17 @@ const FORMULAS = [
   'Travel Time = Distance ÷ Avg Speed',
   'Total Expense = Fuel + Toll + Driver + Other',
   'Profit % = (Revenue − Total Expense) ÷ Revenue × 100',
+];
+
+const TOLL_FLOW = [
+  'Manual mode (no route): your toll amount is used exactly as entered.',
+  'Route mode (auto): the calculator picks the first toll it can find —',
+  '  1. Cached toll from an earlier fetch of the same route',
+  '  2. TollGuru live API (real route toll)',
+  '  3. ₹3/km estimated toll when the live quota is exhausted',
+  'On an auto route the manual toll box is disabled — the estimate wins.',
+  'Estimated tolls are flagged so every report knows it was an estimate.',
+  'Profit always uses the final toll value.',
 ];
 
 export default function Settings() {
@@ -174,6 +186,37 @@ export default function Settings() {
                 <li key={f}>
                   <Stack direction="row" spacing={1}  sx={{ alignItems: 'center' }}>
                     <LocalGasStation sx={{ fontSize: 13, color: 'text.disabled' }} />
+                    <span>{f}</span>
+                  </Stack>
+                </li>
+              ))}
+            </Box>
+
+            <Divider sx={{ my: 1.75 }} />
+
+            <Stack direction="row" spacing={1}  sx={{alignItems: 'center',  mb: 1.25 }}>
+              <AltRoute sx={{ fontSize: 17, color: 'text.secondary' }} />
+              <Typography variant="subtitle2" color="text.secondary">
+                How the toll is chosen
+              </Typography>
+            </Stack>
+            <Box
+              component="ul"
+              sx={{
+                m: 0,
+                pl: 0,
+                listStyle: 'none',
+                display: 'grid',
+                gap: 0.75,
+                fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                fontSize: '0.75rem',
+                color: 'text.secondary',
+              }}
+            >
+              {TOLL_FLOW.map((f) => (
+                <li key={f}>
+                  <Stack direction="row" spacing={1}  sx={{ alignItems: 'flex-start' }}>
+                    <AltRoute sx={{ fontSize: 13, color: 'text.disabled', mt: 0.25 }} />
                     <span>{f}</span>
                   </Stack>
                 </li>
