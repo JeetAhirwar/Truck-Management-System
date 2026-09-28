@@ -270,7 +270,11 @@ function buildComponents(mode) {
           paddingBlock: 12,
           whiteSpace: 'nowrap',
         }),
-        sizeSmall: { paddingInline: 12 },
+        sizeSmall: {
+          /* Tighter gutters on phones: 4 visible columns + their padding must
+             fit a 360px viewport without sideways scrolling. */
+          paddingInline: { xs: 8, sm: 12 },
+        },
       },
     },
 

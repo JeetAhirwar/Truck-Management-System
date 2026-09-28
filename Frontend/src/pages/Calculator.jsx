@@ -182,7 +182,7 @@ function Metric({ icon: Icon, label, value, tone }) {
         bgcolor: 'background.nested',
       }}
     >
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.75 }}>
+      <Stack direction="row" spacing={1}  sx={{alignItems: 'center',  mb: 0.75 }}>
         <Icon sx={{ fontSize: 16, color: tone }} />
         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
           {label}
@@ -197,7 +197,7 @@ function Metric({ icon: Icon, label, value, tone }) {
 
 function FormulaRow({ label, children }) {
   return (
-    <Stack direction="row" justifyContent="space-between" spacing={2} sx={{ py: 0.4 }}>
+    <Stack direction="row"  spacing={2} sx={{justifyContent: 'space-between',  py: 0.4 }}>
       <Typography variant="body2" color="text.secondary">
         {label}
       </Typography>
@@ -472,10 +472,10 @@ export default function Calculator() {
     <Box sx={{ maxWidth: 1500 }}>
       <Stack
         direction={{ xs: 'column', sm: 'row' }}
-        alignItems={{ xs: 'flex-start', sm: 'center' }}
-        justifyContent="space-between"
+        
+        
         spacing={2}
-        sx={{ mb: 3 }}
+        sx={{alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between',  mb: 3 }}
       >
         <Box>
           <Typography variant="h2">Trip Calculator</Typography>
@@ -511,7 +511,7 @@ export default function Calculator() {
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
           <Card>
             <CardContent sx={{ p: '24px !important', '&:last-child': { pb: '24px !important' } }}>
-              <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 2.5 }}>
+              <Stack direction="row" spacing={1.25}  sx={{alignItems: 'center',  mb: 2.5 }}>
                 <Box
                   sx={{
                     width: 36,
@@ -677,10 +677,10 @@ export default function Calculator() {
               <CardContent sx={{ p: '16px !important', '&:last-child': { pb: '16px !important' } }}>
                 <Stack
                   direction="row"
-                  alignItems="center"
-                  justifyContent="space-between"
+                  
+                  
                   spacing={1}
-                  sx={{ mb: 1.5, px: 0.5 }}
+                  sx={{alignItems: 'center', justifyContent: 'space-between',  mb: 1.5, px: 0.5 }}
                 >
                   <Box>
                     <Typography variant="h6">Route map</Typography>
@@ -750,7 +750,7 @@ export default function Calculator() {
                   </Box>
                 ) : (
                   <Stack spacing={2.5}>
-                    <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', gap: 1 }}>
+                    <Stack direction="row" spacing={1}  sx={{alignItems: 'center',  flexWrap: 'wrap', gap: 1 }}>
                       <SoftChip color="primary" label={result.truck.truckNumber} />
                       <Chip
                         size="small"
@@ -890,7 +890,7 @@ export default function Calculator() {
                           ₹{(result.breakdown.other || 0).toLocaleString('en-IN')}
                         </FormulaRow>
                         <Divider sx={{ my: 1 }} />
-                        <Stack direction="row" justifyContent="space-between">
+                        <Stack direction="row"  sx={{ justifyContent: 'space-between' }}>
                           <Typography variant="subtitle2">Profit</Typography>
                           <Typography
                             variant="subtitle2"
@@ -907,9 +907,9 @@ export default function Calculator() {
                     <Stack
                       direction={{ xs: 'column', sm: 'row' }}
                       spacing={1.5}
-                      alignItems={{ xs: 'stretch', sm: 'center' }}
-                      justifyContent="space-between"
-                    >
+                      
+                      
+                     sx={{ alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
                       <Typography variant="caption" color="text.secondary">
                         {hasRoute
                           ? 'Saving stores this quote with its exact OSRM route.'

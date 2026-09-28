@@ -228,7 +228,7 @@ export default function Documents() {
         />
       </StatGrid>
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ xs: 'stretch', sm: 'center' }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}  sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}>
         <SearchField
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -281,8 +281,8 @@ export default function Documents() {
                 >
                   <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                     <CardContent sx={{ p: '20px !important', '&:last-child': { pb: '20px !important' }, flex: 1 }}>
-                      <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
-                        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+                      <Stack direction="row"   spacing={1} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                        <Stack direction="row" spacing={1.5}  sx={{alignItems: 'center',  minWidth: 0 }}>
                           <Avatar variant="rounded" sx={{ width: 44, height: 44, borderRadius: '14px', bgcolor: (th) => th.palette.mode === 'light' ? '#ede9fe' : 'rgba(124,58,237,0.2)', color: '#7c3aed', '& svg': { fontSize: 22 } }}>
                             <Description />
                           </Avatar>
@@ -323,7 +323,7 @@ export default function Documents() {
                         </Spec>
                         {d.hasFile && (
                           <Spec label="File">
-                            <Stack direction="row" spacing={0.75} alignItems="center" justifyContent="flex-end">
+                            <Stack direction="row" spacing={0.75}   sx={{ alignItems: 'center', justifyContent: 'flex-end' }}>
                               <SoftChip tone="#4f46e5" label={(ext || 'file').toUpperCase()} />
                               {d.fileProvider === 'cloudinary' && (
                                 <Typography variant="caption" color="text.secondary">
@@ -372,7 +372,7 @@ export default function Documents() {
 
       <Dialog open={modal} onClose={closeForm} maxWidth="sm" fullWidth>
         <DialogTitle>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Stack direction="row"   sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
             <span>{editId ? 'Edit' : 'Add'} Document</span>
             <IconButton onClick={closeForm} size="small" aria-label="Close dialog">
               <Close fontSize="small" />

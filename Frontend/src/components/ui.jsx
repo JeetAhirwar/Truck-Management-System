@@ -193,7 +193,7 @@ export function StatCard({
             </>
           ) : (
             <>
-              <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
+              <Stack direction="row"   spacing={1} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <Typography variant="subtitle2" color="text.secondary" sx={{ pt: 0.5 }}>
                   {label}
                 </Typography>
@@ -245,24 +245,33 @@ export function StatGrid({ children, sx }) {
 /* ------------------------------------------------------------------ */
 /* PageHeader — title + muted subtitle left, actions right.             */
 /* ------------------------------------------------------------------ */
-export function PageHeader({ title, subtitle, actions }) {
+export function PageHeader({ title, subtitle, caption, actions }) {
   return (
     <Stack
       direction={{ xs: 'column', sm: 'row' }}
-      alignItems={{ xs: 'flex-start', sm: 'center' }}
-      justifyContent="space-between"
+      
+      
       spacing={2}
-    >
+     sx={{ alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between' }}>
       <Box sx={{ minWidth: 0 }}>
         <Typography variant="h2">{title}</Typography>
-        {subtitle && (
+        {caption && (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            {caption}
+          </Typography>
+        )}
+        {subtitle && (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ mt: caption ? 0.2 : 0.5 }}
+          >
             {subtitle}
           </Typography>
         )}
       </Box>
       {actions && (
-        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexShrink: 0 }}>
+        <Stack direction="row" spacing={1.5}  sx={{alignItems: 'center',  flexShrink: 0 }}>
           {actions}
         </Stack>
       )}
@@ -344,7 +353,7 @@ export function FormDialog({
   return (
     <Dialog open={open} onClose={onClose} maxWidth={maxWidth} fullWidth>
       <DialogTitle>
-        <Stack direction="row" alignItems="center" justifyContent="space-between">
+        <Stack direction="row"   sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
           <span>{title}</span>
           <IconButton onClick={onClose} size="small" aria-label="Close dialog">
             <Close fontSize="small" />

@@ -3,6 +3,7 @@ import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import Notifications from './pages/Notifications';
 import Trucks from './pages/Trucks';
 import Drivers from './pages/Drivers';
 import Documents from './pages/Documents';
@@ -22,6 +23,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
         <Route index element={<Dashboard />} />
+        <Route path="notifications" element={<Notifications />} />
         <Route path="trucks" element={<Trucks />} />
         <Route path="drivers" element={<Drivers />} />
         <Route path="documents" element={<Documents />} />

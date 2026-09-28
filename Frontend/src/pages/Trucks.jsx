@@ -158,6 +158,7 @@ export default function Trucks() {
     <Stack spacing={3}>
       <PageHeader
         title="Trucks"
+        caption="Vehicles, drivers & FASTag"
         subtitle={`${trucks.length} vehicle${trucks.length === 1 ? '' : 's'} in the fleet`}
         actions={
           <>
@@ -219,8 +220,8 @@ export default function Trucks() {
               >
                 <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                   <CardContent sx={{ p: '20px !important', '&:last-child': { pb: '20px !important' }, flex: 1 }}>
-                    <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
-                      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+                    <Stack direction="row"   spacing={1} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                      <Stack direction="row" spacing={1.5}  sx={{alignItems: 'center',  minWidth: 0 }}>
                         <Avatar variant="rounded" sx={{ width: 44, height: 44, borderRadius: '14px', bgcolor: (th) => th.palette.mode === 'light' ? '#dbeafe' : 'rgba(59,130,246,0.18)', color: 'primary.main', '& svg': { fontSize: 22 } }}>
                           <LocalShipping />
                         </Avatar>
@@ -251,7 +252,7 @@ export default function Trucks() {
                     </Box>
 
                     {t.fastag?.balance !== undefined && (
-                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1.75 }}>
+                      <Stack direction="row" spacing={1}  sx={{alignItems: 'center',  mt: 1.75 }}>
                         <LocalGasStation sx={{ fontSize: 16, color: 'text.disabled' }} />
                         <Typography variant="caption" color="text.secondary">
                           FASTag ₹{Number(t.fastag.balance).toLocaleString('en-IN')}
@@ -296,7 +297,7 @@ export default function Trucks() {
           <TextField label="Model" value={form.model} onChange={set('model')} />
         </Box>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr' }, gap: 2 }}>
-          <TextField label="Mileage (km/L) *" type="number" inputProps={{ step: '0.1' }} value={form.currentMileage} onChange={set('currentMileage')} required />
+          <TextField label="Mileage (km/L) *" type="number" slotProps={{ htmlInput: { step: '0.1' } }} value={form.currentMileage} onChange={set('currentMileage')} required />
           <TextField label="Fuel Type" select value={form.fuelType} onChange={set('fuelType')}>
             {['Diesel', 'CNG', 'Petrol'].map((o) => (
               <MenuItem key={o} value={o}>{o}</MenuItem>

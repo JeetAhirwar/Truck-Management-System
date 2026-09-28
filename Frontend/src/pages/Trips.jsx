@@ -52,7 +52,7 @@ function ProfitCell({ trip }) {
   const profitable = (trip.profit || 0) >= 0;
   const Icon = profitable ? TrendingUp : TrendingDown;
   return (
-    <Stack direction="row" spacing={0.75} alignItems="center">
+    <Stack direction="row" spacing={0.75}  sx={{ alignItems: 'center' }}>
       <Icon sx={{ fontSize: 16, color: profitable ? 'success.main' : 'error.main' }} />
       <Box>
         <Typography variant="body2" sx={{ fontWeight: 700, color: profitable ? 'success.main' : 'error.main' }}>
@@ -125,9 +125,10 @@ export default function Trips() {
     <Box sx={{ maxWidth: 1500 }}>
       <PageHeader
         title="Trips"
+        caption="Trip history & earnings"
         subtitle={`${trips.length} recorded · ${activeCount} active · net ${rupees(totalProfit)}`}
         actions={
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ width: { xs: '100%', md: 'auto' } }}>
+          <Stack direction="row" spacing={1}  sx={{alignItems: 'center',  width: { xs: '100%', md: 'auto' } }}>
             <SearchField
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -143,7 +144,7 @@ export default function Trips() {
         }
       />
 
-      <StatGrid sx={{ mt: 3 }}>
+      <StatGrid sx={{ mt: 3, mb: 2.5 }}>
         <StatCard icon={RouteIcon} label="Total trips" value={trips.length} tone="#4f46e5" hint="All time" delay={0} />
         <StatCard icon={DirectionsCar} label="Active" value={activeCount} tone="#2563eb" hint="Started or in transit" delay={0.04} />
         <StatCard
@@ -238,7 +239,7 @@ export default function Trips() {
                           </Typography>
                         </TableCell>
                         <TableCell sx={{ maxWidth: 260 }}>
-                          <Stack direction="row" spacing={1} alignItems="center">
+                          <Stack direction="row" spacing={1}  sx={{ alignItems: 'center' }}>
                             <RouteIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
                             <Box sx={{ minWidth: 0 }}>
                               <Typography variant="body2" noWrap>
@@ -265,7 +266,7 @@ export default function Trips() {
                           <ProfitCell trip={trip} />
                         </TableCell>
                         <TableCell>
-                          <Stack direction="row" spacing={0.75} alignItems="center">
+                          <Stack direction="row" spacing={0.75}  sx={{ alignItems: 'center' }}>
                             <SoftChip status={trip.status} label={meta.label} />
                             {trip.tollIsEstimated && (
                               <SoftChip tone="#d97706" label="est. toll" />

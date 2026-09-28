@@ -7,6 +7,7 @@ const { protect } = require('../middleware/auth');
 const { fullTripCalc, validateDistance } = require('../utils/calc');
 const { getRoute } = require('../services/osrm');
 const { resolveToll } = require('../services/tollProvider');
+const { eventNotifiers } = require('../services/notificationService');
 const router = express.Router();
 router.use(protect);
 
@@ -334,6 +335,10 @@ router.post('/', async (req, res) => {
       });
     }
 
+    if (ACTIVE_TRIP_STATUSES.includes(status)) {
+      eventNotifiers.tripStarted(trip).catch((err) => console.error('[notify] tripStarted:', err.message));
+    }
+
     res.status(201).json(trip);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -397,6 +402,19 @@ router.put('/:id', async (req, res) => {
         status: 'Available',
         $unset: { currentTrip: '' }
       });
+    }
+
+    // Notify on meaningful state transitions (deduped per trip + state).
+    if (patch.status && patch.status !== trip.status && updated) {
+      const handler =
+        patch.status === 'Completed'
+          ? eventNotifiers.tripCompleted
+          : patch.status === 'Cancelled'
+            ? eventNotifiers.tripCancelled
+            : ACTIVE_TRIP_STATUSES.includes(patch.status)
+              ? eventNotifiers.tripStarted
+              : null;
+      if (handler) handler(updated).catch((err) => console.error('[notify] trip status:', err.message));
     }
 
     res.json(updated);

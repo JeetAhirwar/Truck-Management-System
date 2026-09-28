@@ -6,6 +6,7 @@ import './index.css';
 import { AuthProvider } from './hooks/useAuth';
 import { ThemeProvider } from './hooks/useTheme';
 import AppThemeProvider from './components/AppThemeProvider';
+import { NotificationsProvider } from './contexts/NotificationsContext';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -13,7 +14,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <ThemeProvider>
         <AppThemeProvider>
           <AuthProvider>
-            <App />
+            <NotificationsProvider>
+              <App />
+            </NotificationsProvider>
           </AuthProvider>
         </AppThemeProvider>
       </ThemeProvider>

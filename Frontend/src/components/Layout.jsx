@@ -25,6 +25,7 @@ import {
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
+  NotificationsNone,
   LocalShipping,
   People,
   Description,
@@ -38,9 +39,11 @@ import {
 import { alpha } from '@mui/material/styles';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme as useColorMode } from '../hooks/useTheme';
+import NotificationBell from './NotificationBell';
 
 const NAV_ITEMS = [
   { to: '/', icon: DashboardIcon, label: 'Dashboard', desc: 'Fleet overview & live alerts' },
+  { to: '/notifications', icon: NotificationsNone, label: 'Notifications', desc: 'Alerts & live updates' },
   { to: '/trucks', icon: LocalShipping, label: 'Trucks', desc: 'Vehicles, drivers & FASTag' },
   { to: '/drivers', icon: People, label: 'Drivers', desc: 'Roster & truck assignments' },
   { to: '/documents', icon: Description, label: 'Documents', desc: 'RC, insurance & compliance' },
@@ -51,9 +54,6 @@ const NAV_ITEMS = [
 
 const isCurrent = (pathname, to) =>
   to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(`${to}/`);
-
-const findCurrent = (pathname) =>
-  NAV_ITEMS.find((item) => isCurrent(pathname, item.to)) || NAV_ITEMS[0];
 
 /* Hoisted to module scope: it is created once, so opening the mobile drawer
    or toggling the theme never remounts the whole sidebar. */
@@ -99,7 +99,7 @@ const NavContent = memo(function NavContent({ onNavigate }) {
           <LocalShipping fontSize="small" />
         </Box>
         <Box sx={{ minWidth: 0 }}>
-          <Typography variant="subtitle1" fontWeight={800} lineHeight={1.15}>
+          <Typography variant="subtitle1" fontWeight={800} sx={{ lineHeight: 1.15 }}>
             TruckPro
           </Typography>
           <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
@@ -139,7 +139,7 @@ const NavContent = memo(function NavContent({ onNavigate }) {
 
         <Divider sx={{ my: 1.25 }} />
 
-        <Stack direction="row" alignItems="center" spacing={1.25} sx={{ px: 1, py: 0.25 }}>
+        <Stack direction="row"  spacing={1.25} sx={{alignItems: 'center',  px: 1, py: 0.25 }}>
           <Avatar
             sx={{
               width: 36,
@@ -174,7 +174,6 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const { dark, toggle } = useColorMode();
   const theme = useTheme();
-  const location = useLocation();
   const navigate = useNavigate();
   const isDesktop = useMediaQuery(theme.breakpoints.up('lg'));
 
@@ -187,8 +186,6 @@ export default function Layout() {
     logout();
     navigate('/login');
   }, [logout, navigate]);
-
-  const current = findCurrent(location.pathname);
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -244,21 +241,9 @@ export default function Layout() {
               <MenuIcon />
             </IconButton>
 
-            <Box sx={{ minWidth: 0, flexShrink: 1 }}>
-              <Typography variant="h6" noWrap>
-                {current.label}
-              </Typography>
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                noWrap
-                sx={{ display: { xs: 'none', sm: 'block' } }}
-              >
-                {current.desc}
-              </Typography>
-            </Box>
-
             <Box sx={{ flexGrow: 1 }} />
+
+            <NotificationBell />
 
             <Tooltip title={dark ? 'Switch to light mode' : 'Switch to dark mode'}>
               <IconButton onClick={toggle} aria-label="Toggle color mode" sx={{ border: 1, borderColor: 'divider' }}>

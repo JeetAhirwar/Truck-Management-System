@@ -1,12 +1,43 @@
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
+const http = require('http');
+const mongoose = require('mongoose');
+const { Server } = require('socket.io');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const connectDB = require('./config/db');
+const { registerSocket } = require('./services/notificationService');
 
 connectDB();
 
 const app = express();
+const server = http.createServer(app);
+
+// Real-time notifications. JWT is verified on the handshake so only
+// authenticated frontends can connect, then each user joins a private room
+// (`user:<id>`) plus the broadcast room (`all`) for fleet-wide notifications.
+const io = new Server(server, {
+  transports: ['websocket', 'polling'],
+  cors: { origin: '*', methods: ['GET', 'POST'] },
+});
+io.use((socket, next) => {
+  try {
+    const token = socket.handshake.auth?.token;
+    if (!token) return next(new Error('Not authorized, no token'));
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'truckpro_super_secret_2026');
+    socket.userId = decoded.id;
+    next();
+  } catch (err) {
+    next(new Error('Not authorized, token failed'));
+  }
+});
+io.on('connection', (socket) => {
+  socket.join('all');
+  if (socket.userId) socket.join(`user:${socket.userId}`);
+});
+registerSocket(io);
+
 app.use(cors());
 // 2 MB: a saved trip carries an OSRM route polyline, which easily exceeds the
 // default 100 KB limit.
@@ -29,6 +60,7 @@ app.use('/api/drivers', require('./routes/drivers'));
 app.use('/api/documents', require('./routes/documents'));
 app.use('/api/trips', require('./routes/trips'));
 app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/tolls', require('./routes/tolls'));
 
@@ -42,6 +74,19 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚛 TruckPro Server running on http://localhost:${PORT}`);
 });
+
+// Idempotent scanner: backfills notifications for documents/FASTag/maintenance
+// once Mongo is connected, then re-checks periodically while the process runs.
+const { startNotificationScanner } = require('./services/notificationScanner');
+const runScanner = () => {
+  try {
+    startNotificationScanner();
+  } catch (err) {
+    console.error('Scanner error:', err.message);
+  }
+};
+if (mongoose.connection.readyState === 1) runScanner();
+else mongoose.connection.once('connected', runScanner);

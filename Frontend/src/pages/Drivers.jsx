@@ -160,6 +160,7 @@ export default function Drivers() {
     <Stack spacing={3}>
       <PageHeader
         title="Drivers"
+        caption="Roster & truck assignments"
         subtitle={`${drivers.length} driver${drivers.length === 1 ? '' : 's'} on the roster`}
         actions={
           <>
@@ -235,8 +236,8 @@ export default function Drivers() {
               >
                 <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                   <CardContent sx={{ p: '20px !important', '&:last-child': { pb: '20px !important' }, flex: 1 }}>
-                    <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={1}>
-                      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+                    <Stack direction="row"   spacing={1} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                      <Stack direction="row" spacing={1.5}  sx={{alignItems: 'center',  minWidth: 0 }}>
                         <Avatar variant="rounded" sx={{ width: 44, height: 44, borderRadius: '14px', bgcolor: (th) => th.palette.mode === 'light' ? '#ede9fe' : 'rgba(124,58,237,0.2)', color: '#7c3aed', '& svg': { fontSize: 22 } }}>
                           <Person />
                         </Avatar>

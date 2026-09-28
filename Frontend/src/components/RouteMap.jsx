@@ -116,7 +116,7 @@ export default function RouteMap({
             backdropFilter: 'blur(2px)'
           }}
         >
-          <Stack alignItems="center" spacing={1.5}>
+          <Stack  spacing={1.5} sx={{ alignItems: 'center' }}>
             <CircularProgress size={34} sx={{ color: '#fff' }} />
             <Typography variant="caption" sx={{ color: '#fff', fontWeight: 600 }}>
               Calculating route &amp; tolls…

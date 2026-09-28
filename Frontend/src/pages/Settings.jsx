@@ -92,7 +92,7 @@ export default function Settings() {
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
         <Card>
           <CardContent sx={{ p: '24px !important', '&:last-child': { pb: '24px !important' } }}>
-            <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 2.5 }}>
+            <Stack direction="row" spacing={1.25}  sx={{alignItems: 'center',  mb: 2.5 }}>
               <Box
                 sx={{
                   width: 36,
@@ -127,9 +127,9 @@ export default function Settings() {
 
             <Box component="form" onSubmit={save} sx={{ display: 'grid', gap: 2 }}>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
-                <TextField label="Diesel ₹/L" type="number" inputProps={{ step: '0.01' }} value={form.dieselPrice} onChange={set('dieselPrice')} />
-                <TextField label="CNG ₹/kg" type="number" inputProps={{ step: '0.01' }} value={form.cngPrice} onChange={set('cngPrice')} />
-                <TextField label="Petrol ₹/L" type="number" inputProps={{ step: '0.01' }} value={form.petrolPrice} onChange={set('petrolPrice')} />
+                <TextField label="Diesel ₹/L" type="number" slotProps={{ htmlInput: { step: '0.01' } }} value={form.dieselPrice} onChange={set('dieselPrice')} />
+                <TextField label="CNG ₹/kg" type="number" slotProps={{ htmlInput: { step: '0.01' } }} value={form.cngPrice} onChange={set('cngPrice')} />
+                <TextField label="Petrol ₹/L" type="number" slotProps={{ htmlInput: { step: '0.01' } }} value={form.petrolPrice} onChange={set('petrolPrice')} />
               </Box>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                 <TextField label="Default Driver Expense ₹" type="number" value={form.defaultDriverExpense} onChange={set('defaultDriverExpense')} />
@@ -150,7 +150,7 @@ export default function Settings() {
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
         <Card sx={{ borderStyle: 'dashed', bgcolor: 'background.nested' }}>
           <CardContent sx={{ p: '20px 24px !important', '&:last-child': { pb: '20px !important' } }}>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+            <Stack direction="row" spacing={1}  sx={{alignItems: 'center',  mb: 1.5 }}>
               <Functions sx={{ fontSize: 18, color: 'text.secondary' }} />
               <Typography variant="subtitle2" color="text.secondary">
                 Calculation Formulas (Backend Engine)
@@ -172,7 +172,7 @@ export default function Settings() {
             >
               {FORMULAS.map((f) => (
                 <li key={f}>
-                  <Stack direction="row" spacing={1} alignItems="center">
+                  <Stack direction="row" spacing={1}  sx={{ alignItems: 'center' }}>
                     <LocalGasStation sx={{ fontSize: 13, color: 'text.disabled' }} />
                     <span>{f}</span>
                   </Stack>

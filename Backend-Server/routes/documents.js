@@ -2,6 +2,7 @@ const express = require('express');
 const Document = require('../models/Document');
 const { protect } = require('../middleware/auth');
 const { uploadSingle, deleteStoredFile, toStoredFile, isCloudinaryEnabled, MAX_FILE_SIZE } = require('../utils/upload');
+const { notify } = require('../services/notificationService');
 
 const router = express.Router();
 router.use(protect);
@@ -47,6 +48,44 @@ function fail(status, message) {
   throw err;
 }
 
+/**
+ * Fires a live notification when a saved document is expired or expiring.
+ * Dedupe key is scoped per document + state, so re-saving without a status
+ * change stays quiet while a expired→expiring flip still notifies.
+ */
+function maybeNotifyDocumentPolicy(doc) {
+  if (!doc || !doc.expiryDate) return Promise.resolve();
+  const days = Math.ceil((new Date(doc.expiryDate).getTime() - Date.now()) / 86400000);
+  const truckNumber = doc.truckNumber || '';
+  if (days < 0) {
+    return notify({
+      type: 'document_expired',
+      severity: 'critical',
+      title: `${doc.docType} expired`,
+      message: `${truckNumber} · ${doc.docType} expired ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} ago.`,
+      link: '/documents',
+      truckId: doc.truck,
+      docId: doc._id,
+      source: 'live',
+      dedupeKey: `doc-${doc._id}-expired`,
+    }).catch((err) => console.error('[notify] doc expired:', err.message));
+  }
+  if (days <= 30) {
+    return notify({
+      type: 'document_expiring',
+      severity: 'warning',
+      title: `${doc.docType} expiring soon`,
+      message: `${truckNumber} · ${doc.docType} expires in ${days} day${days === 1 ? '' : 's'}.`,
+      link: '/documents',
+      truckId: doc.truck,
+      docId: doc._id,
+      source: 'live',
+      dedupeKey: `doc-${doc._id}-expiring`,
+    }).catch((err) => console.error('[notify] doc expiring:', err.message));
+  }
+  return Promise.resolve();
+}
+
 router.get('/', async (req, res) => {
   try {
     const docs = await Document.find().populate('truck', 'truckNumber').sort({ expiryDate: 1 });
@@ -87,6 +126,7 @@ router.post('/', uploadSingle, async (req, res) => {
     if (stored) Object.assign(fields, stored);
 
     const doc = await Document.create(fields);
+    maybeNotifyDocumentPolicy(doc);
     res.status(201).json(doc);
   } catch (err) {
     // Never leave an orphaned file behind when the save fails.
@@ -142,6 +182,7 @@ router.put('/:id', uploadSingle, async (req, res) => {
     }
 
     await doc.populate('truck', 'truckNumber');
+    maybeNotifyDocumentPolicy(doc);
     res.json(doc);
   } catch (err) {
     if (stored) await deleteStoredFile(stored);

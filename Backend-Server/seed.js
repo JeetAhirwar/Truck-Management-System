@@ -6,6 +6,7 @@ const Truck = require('./models/Truck');
 const Driver = require('./models/Driver');
 const Document = require('./models/Document');
 const Settings = require('./models/Settings');
+const Notification = require('./models/Notification');
 
 const seed = async () => {
   try {
@@ -17,6 +18,7 @@ const seed = async () => {
     await Driver.deleteMany({});
     await Document.deleteMany({});
     await Settings.deleteMany({});
+    await Notification.deleteMany({});
 
     const admin = await User.create({
       name: 'Admin',
@@ -113,6 +115,51 @@ const seed = async () => {
       { truck: trucks[2]._id, truckNumber: trucks[2].truckNumber, docType: 'Fitness Certificate', docNumber: 'FC-3344', issueDate: new Date('2025-01-15'), expiryDate: nextYear },
       { truck: trucks[2]._id, truckNumber: trucks[2].truckNumber, docType: 'National Permit', docNumber: 'NP-44521', issueDate: new Date('2024-01-10'), expiryDate: nextYear }
     ]);
+
+    // Demo notifications (source: seed) so the feed has content on first run.
+    // Dedupe keys mirror the live/scanner ones, so an already-existing
+    // notification of the same kind is never duplicated.
+    await Notification.insertMany([
+      {
+        type: 'system',
+        severity: 'info',
+        title: 'Welcome to TruckPro',
+        message: 'Fleet notifications are now live. You will get real-time alerts for trips, documents and FASTag.',
+        link: '/dashboard',
+        source: 'seed',
+      },
+      {
+        type: 'document_expired',
+        severity: 'critical',
+        title: 'Insurance expired',
+        message: `${trucks[1].truckNumber} · Insurance expired 30 days ago.`,
+        link: '/documents',
+        truckId: trucks[1]._id,
+        source: 'seed',
+        dedupeKey: `seed-doc-expired-${trucks[1]._id}`,
+      },
+      {
+        type: 'document_expiring',
+        severity: 'warning',
+        title: 'PUC expiring soon',
+        message: `${trucks[1].truckNumber} · PUC expires in 15 days.`,
+        link: '/documents',
+        truckId: trucks[1]._id,
+        source: 'seed',
+        dedupeKey: `seed-doc-expiring-${trucks[1]._id}`,
+      },
+      {
+        type: 'fastag_low',
+        severity: 'critical',
+        title: 'FASTag low balance',
+        message: `${trucks[1].truckNumber} · ₹820 left (below ₹1,000).`,
+        link: '/trucks',
+        truckId: trucks[1]._id,
+        source: 'seed',
+        dedupeKey: `seed-fastag-low-${trucks[1]._id}`,
+      }
+    ]);
+    console.log('Demo notifications inserted (source: seed).');
 
     console.log('✅ Seed completed successfully!');
     console.log('Login: admin@truck.com / admin123');

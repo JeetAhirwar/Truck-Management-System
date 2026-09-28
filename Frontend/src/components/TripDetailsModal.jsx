@@ -51,7 +51,7 @@ export const statusMeta = (status) =>
 
 function MoneyRow({ label, value, tone, bold }) {
   return (
-    <Stack direction="row" justifyContent="space-between" spacing={2} sx={{ py: 0.55 }}>
+    <Stack direction="row"  spacing={2} sx={{justifyContent: 'space-between',  py: 0.55 }}>
       <Typography variant="body2" color={bold ? 'text.primary' : 'text.secondary'} sx={{ fontWeight: bold ? 700 : 400 }}>
         {label}
       </Typography>
@@ -73,7 +73,7 @@ function StatCard({ icon: Icon, label, value, tone = 'text.primary' }) {
         bgcolor: 'background.nested'
       }}
     >
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.75 }}>
+      <Stack direction="row" spacing={1}  sx={{alignItems: 'center',  mb: 0.75 }}>
         <Icon sx={{ fontSize: 16, color: tone }} />
         <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
           {label}
@@ -106,7 +106,7 @@ function DriverSection({ trip }) {
       </Typography>
       {driver ? (
         <Box sx={{ mt: 1 }}>
-          <Stack direction="row" spacing={1.5} alignItems="center">
+          <Stack direction="row" spacing={1.5}  sx={{ alignItems: 'center' }}>
             <Avatar
               variant="rounded"
               sx={{ width: 40, height: 40, borderRadius: '10px', bgcolor: '#EDE9FE', color: '#5B21B6' }}
@@ -118,7 +118,7 @@ function DriverSection({ trip }) {
                 {driver.name}
               </Typography>
               {driver.mobile && (
-                <Stack direction="row" spacing={0.5} alignItems="center">
+                <Stack direction="row" spacing={0.5}  sx={{ alignItems: 'center' }}>
                   <Phone sx={{ fontSize: 13, color: 'text.secondary' }} />
                   <Typography variant="caption" color="text.secondary">
                     {driver.mobile}
@@ -129,14 +129,14 @@ function DriverSection({ trip }) {
           </Stack>
           <Stack spacing={0.75} sx={{ mt: 1.5 }}>
             {driver.licenseNumber && (
-              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-                <Stack direction="row" spacing={0.75} alignItems="center">
+              <Stack direction="row" spacing={1}   sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                <Stack direction="row" spacing={0.75}  sx={{ alignItems: 'center' }}>
                   <BadgeIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
                   <Typography variant="body2" color="text.secondary">
                     License
                   </Typography>
                 </Stack>
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" spacing={1}  sx={{ alignItems: 'center' }}>
                   <Typography variant="body2" fontWeight={600}>
                     {driver.licenseNumber}
                   </Typography>
@@ -147,7 +147,7 @@ function DriverSection({ trip }) {
               </Stack>
             )}
             {driver.experience != null && driver.experience !== '' && (
-              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+              <Stack direction="row" spacing={1}   sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
                 <Typography variant="body2" color="text.secondary">
                   Experience
                 </Typography>
@@ -159,7 +159,7 @@ function DriverSection({ trip }) {
           </Stack>
         </Box>
       ) : trip.driverName ? (
-        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 1 }}>
+        <Stack direction="row" spacing={1.5}  sx={{alignItems: 'center',  mt: 1 }}>
           <Avatar
             variant="rounded"
             sx={{ width: 40, height: 40, borderRadius: '10px', bgcolor: '#EDE9FE', color: '#5B21B6' }}
@@ -209,9 +209,9 @@ export default function TripDetailsModal({ open, trip, loading = false, onClose,
       PaperProps={{ sx: { borderRadius: 4, maxHeight: '92vh' } }}
     >
       <DialogTitle sx={{ pb: 1.5 }}>
-        <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={2}>
+        <Stack direction="row"   spacing={2} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <Box sx={{ minWidth: 0 }}>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', gap: 1 }}>
+            <Stack direction="row" spacing={1}  sx={{alignItems: 'center',  flexWrap: 'wrap', gap: 1 }}>
               <Typography variant="h5" sx={{ fontFamily: 'ui-monospace, monospace' }}>
                 {trip.tripId}
               </Typography>
@@ -232,7 +232,7 @@ export default function TripDetailsModal({ open, trip, loading = false, onClose,
 
       <DialogContent dividers>
         {loading ? (
-          <Stack alignItems="center" spacing={2} sx={{ py: 8 }}>
+          <Stack  spacing={2} sx={{alignItems: 'center',  py: 8 }}>
             <CircularProgress />
             <Typography variant="body2" color="text.secondary">
               Loading trip…
@@ -307,13 +307,13 @@ export default function TripDetailsModal({ open, trip, loading = false, onClose,
                   borderColor: alpha(profitable ? '#16a34a' : '#dc2626', 0.3)
                 }}
               >
-                <Stack direction="row" spacing={1.5} alignItems="center">
+                <Stack direction="row" spacing={1.5}  sx={{ alignItems: 'center' }}>
                   <ProfitIcon color={profitable ? 'success' : 'error'} />
                   <Box>
                     <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
                       Total profit
                     </Typography>
-                    <Stack direction="row" spacing={1} alignItems="baseline">
+                    <Stack direction="row" spacing={1}  sx={{ alignItems: 'baseline' }}>
                       <Typography variant="h5" sx={{ color: profitable ? 'success.main' : 'error.main' }}>
                         {rupees(trip.profit)}
                       </Typography>
@@ -331,14 +331,14 @@ export default function TripDetailsModal({ open, trip, loading = false, onClose,
               <DriverSection trip={trip} />
 
               <Stack spacing={0.75}>
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" spacing={1}  sx={{ alignItems: 'center' }}>
                   <LocalShipping sx={{ fontSize: 16, color: 'text.secondary' }} />
                   <Typography variant="caption" color="text.secondary">
                     Mileage used {trip.mileageUsed} km/L · Fuel {trip.fuelType} @ {rupees(trip.fuelPrice)}/L
                   </Typography>
                 </Stack>
                 {trip.cargo && (
-                  <Stack direction="row" spacing={1} alignItems="center">
+                  <Stack direction="row" spacing={1}  sx={{ alignItems: 'center' }}>
                     <Toll sx={{ fontSize: 16, color: 'text.secondary' }} />
                     <Typography variant="caption" color="text.secondary">
                       Cargo {trip.cargo}
