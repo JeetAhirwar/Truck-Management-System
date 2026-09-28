@@ -12,6 +12,9 @@ build/
 coverage/
 .vite/
 
+# Screenshot backups (not part of the site)
+Frontend/public/screenshots/_extra/
+
 # Logs
 *.log
 *.log.*

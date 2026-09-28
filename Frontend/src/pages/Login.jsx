@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Truck, Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../hooks/useTheme';
+import logo from '../assets/transparent- logo.png';
+import darkLogo from '../assets/dark mode logo.png';
 
 export default function Login() {
   const [email, setEmail] = useState('admin@truck.com');
@@ -11,6 +14,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
+  const { dark } = useTheme();
   const navigate = useNavigate();
 
   const submit = async (e) => {
@@ -28,14 +32,14 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-4">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
         <div className="card p-8 shadow-xl">
-          <div className="text-center mb-8">
-            <div className="inline-flex w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 items-center justify-center shadow-lg shadow-brand-500/30 mb-4">
-              <Truck className="w-8 h-8 text-white" />
+          <div className="flex items-center justify-center gap-3 mb-8">
+            <img src={dark ? darkLogo : logo} alt="VTMS" className="w-24 h-24 object-contain" />
+            <div className="text-left">
+              <h1 className="text-xl font-bold leading-none">VTMS</h1>
+              <p className="text-slate-500 mt-1.5 text-[11px] tracking-[0.28em] italic font-light">
+                Vehicle &amp; Transport Management System
+              </p>
             </div>
-            <h1 className="text-2xl font-bold">VTMS</h1>
-            <p className="text-slate-500 mt-1.5 text-[11px] uppercase tracking-[0.28em] italic font-light">
-              Vehicle &amp; Transport Management System
-            </p>
           </div>
           <form onSubmit={submit} className="space-y-5">
             {error && <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 text-sm">{error}</div>}
@@ -59,6 +63,12 @@ export default function Login() {
             </button>
           </form>
           <p className="text-center text-xs text-slate-400 mt-6">Demo: admin@truck.com / admin123</p>
+          <Link
+            to="/marketing"
+            className="mt-3 block text-center text-xs text-slate-400 hover:text-brand-500 transition-colors"
+          >
+            View marketing page ›
+          </Link>
         </div>
       </motion.div>
     </div>
