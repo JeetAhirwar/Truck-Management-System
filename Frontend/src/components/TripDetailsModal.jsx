@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Chip,
@@ -19,6 +20,8 @@ import {
   CurrencyRupee,
   LocalGasStation,
   Person,
+  Phone,
+  Badge as BadgeIcon,
   Schedule,
   Toll,
   TrendingDown,
@@ -79,6 +82,99 @@ function StatCard({ icon: Icon, label, value, tone = 'text.primary' }) {
       <Typography variant="h6" sx={{ color: tone }}>
         {value}
       </Typography>
+    </Box>
+  );
+}
+
+function DriverSection({ trip }) {
+  // `driver` is a populated object from GET /trips; plain ObjectId (or
+  // missing) after older writes falls back to the driverName snapshot.
+  const driver = trip.driver && typeof trip.driver === 'object' ? trip.driver : null;
+
+  return (
+    <Box
+      sx={{
+        border: 1,
+        borderColor: 'divider',
+        borderRadius: 3,
+        p: 2,
+        bgcolor: 'background.nested'
+      }}
+    >
+      <Typography variant="overline" color="text.secondary">
+        Driver
+      </Typography>
+      {driver ? (
+        <Box sx={{ mt: 1 }}>
+          <Stack direction="row" spacing={1.5} alignItems="center">
+            <Avatar
+              variant="rounded"
+              sx={{ width: 40, height: 40, borderRadius: '10px', bgcolor: '#EDE9FE', color: '#5B21B6' }}
+            >
+              <Person />
+            </Avatar>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="body2" fontWeight={700} noWrap>
+                {driver.name}
+              </Typography>
+              {driver.mobile && (
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <Phone sx={{ fontSize: 13, color: 'text.secondary' }} />
+                  <Typography variant="caption" color="text.secondary">
+                    {driver.mobile}
+                  </Typography>
+                </Stack>
+              )}
+            </Box>
+          </Stack>
+          <Stack spacing={0.75} sx={{ mt: 1.5 }}>
+            {driver.licenseNumber && (
+              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                <Stack direction="row" spacing={0.75} alignItems="center">
+                  <BadgeIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
+                  <Typography variant="body2" color="text.secondary">
+                    License
+                  </Typography>
+                </Stack>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="body2" fontWeight={600}>
+                    {driver.licenseNumber}
+                  </Typography>
+                  {driver.licenseType && (
+                    <SoftChip tone="#64748b" label={driver.licenseType} />
+                  )}
+                </Stack>
+              </Stack>
+            )}
+            {driver.experience != null && driver.experience !== '' && (
+              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                <Typography variant="body2" color="text.secondary">
+                  Experience
+                </Typography>
+                <Typography variant="body2" fontWeight={600}>
+                  {driver.experience} yrs
+                </Typography>
+              </Stack>
+            )}
+          </Stack>
+        </Box>
+      ) : trip.driverName ? (
+        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 1 }}>
+          <Avatar
+            variant="rounded"
+            sx={{ width: 40, height: 40, borderRadius: '10px', bgcolor: '#EDE9FE', color: '#5B21B6' }}
+          >
+            <Person />
+          </Avatar>
+          <Typography variant="body2" fontWeight={700}>
+            {trip.driverName}
+          </Typography>
+        </Stack>
+      ) : (
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          No driver assigned to this trip.
+        </Typography>
+      )}
     </Box>
   );
 }
@@ -232,6 +328,8 @@ export default function TripDetailsModal({ open, trip, loading = false, onClose,
                 </Stack>
               </Box>
 
+              <DriverSection trip={trip} />
+
               <Stack spacing={0.75}>
                 <Stack direction="row" spacing={1} alignItems="center">
                   <LocalShipping sx={{ fontSize: 16, color: 'text.secondary' }} />
@@ -239,14 +337,6 @@ export default function TripDetailsModal({ open, trip, loading = false, onClose,
                     Mileage used {trip.mileageUsed} km/L · Fuel {trip.fuelType} @ {rupees(trip.fuelPrice)}/L
                   </Typography>
                 </Stack>
-                {trip.driverName && (
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Person sx={{ fontSize: 16, color: 'text.secondary' }} />
-                    <Typography variant="caption" color="text.secondary">
-                      Driver {trip.driverName}
-                    </Typography>
-                  </Stack>
-                )}
                 {trip.cargo && (
                   <Stack direction="row" spacing={1} alignItems="center">
                     <Toll sx={{ fontSize: 16, color: 'text.secondary' }} />

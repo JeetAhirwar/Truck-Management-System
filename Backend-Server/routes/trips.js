@@ -208,7 +208,7 @@ router.get('/', async (req, res) => {
   try {
     const trips = await Trip.find()
       .populate('truck', 'truckNumber model')
-      .populate('driver', 'name mobile')
+      .populate('driver', 'name mobile licenseNumber licenseType experience')
       .sort({ createdAt: -1 });
     res.json(trips);
   } catch (err) {
@@ -385,7 +385,9 @@ router.put('/:id', async (req, res) => {
       }
     }
 
-    const updated = await Trip.findByIdAndUpdate(trip._id, patch, { new: true, runValidators: true });
+    const updated = await Trip.findByIdAndUpdate(trip._id, patch, { new: true, runValidators: true })
+      .populate('truck', 'truckNumber model')
+      .populate('driver', 'name mobile licenseNumber licenseType experience');
 
     // Status side-effects: claim the truck, or release it.
     if (patch.status && ACTIVE_TRIP_STATUSES.includes(patch.status)) {
