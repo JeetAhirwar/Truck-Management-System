@@ -21,7 +21,9 @@ const typography = {
   body1: { fontSize: '0.875rem', lineHeight: 1.65 },
   body2: { fontSize: '0.8125rem', lineHeight: 1.6 },
   button: { textTransform: 'none', fontWeight: 600, fontSize: '0.875rem', letterSpacing: '0.01em' },
-  caption: { fontSize: '0.6875rem', fontWeight: 500, letterSpacing: '0.02em' },
+  /* 12px (not 11px): 11px muted gray failed WCAG AA on white. Every
+     secondary label in the app renders at >= 12px now. */
+  caption: { fontSize: '0.75rem', fontWeight: 500, lineHeight: 1.45, letterSpacing: '0.01em' },
   overline: { fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.1em' },
 };
 
@@ -144,12 +146,33 @@ function buildComponents(mode) {
           marginInline: 8,
           paddingBlock: 9,
           color: theme.palette.text.secondary,
+          position: 'relative',
           '&:hover': { backgroundColor: alpha(theme.palette.text.primary, 0.05) },
+          /* Keyboard users get an unmistakable ring, not just a tint. */
+          '&:focus-visible': {
+            outline: `2px solid ${theme.palette.primary.main}`,
+            outlineOffset: -2,
+          },
+          /* Active item: 3px left accent bar + tinted pill + primary text.
+             The bar is what makes the current page readable at a glance while
+             scanning a 7-item nav. */
           '&.Mui-selected': {
             backgroundColor: alpha(theme.palette.primary.main, 0.12),
             color: theme.palette.primary.main,
+            fontWeight: 700,
             '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.18) },
             '& .MuiListItemIcon-root': { color: theme.palette.primary.main },
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              left: -8,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              width: 3,
+              height: 22,
+              borderRadius: '0 3px 3px 0',
+              backgroundColor: theme.palette.primary.main,
+            },
           },
         }),
       },
@@ -238,13 +261,14 @@ function buildComponents(mode) {
         }),
         head: ({ theme }) => ({
           fontWeight: 700,
-          fontSize: '0.6875rem',
+          fontSize: '0.75rem',
           textTransform: 'uppercase',
-          letterSpacing: '0.06em',
+          letterSpacing: '0.05em',
           color: theme.palette.text.secondary,
           backgroundColor: 'transparent',
           borderBottom: `1px solid ${theme.palette.divider}`,
           paddingBlock: 12,
+          whiteSpace: 'nowrap',
         }),
         sizeSmall: { paddingInline: 12 },
       },

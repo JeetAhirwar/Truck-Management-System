@@ -175,11 +175,13 @@ export function StatCard({
                 {label}
               </Typography>
               {(hint || badge || footer) && (
-                <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                <Box sx={{ mt: 1.25, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                   {hint && (
                     <Typography
                       variant="caption"
-                      sx={{ color: hintColor || 'text.disabled', fontWeight: 500 }}
+                      /* text.secondary (#64748b) = 4.6:1 on white. The old
+                         text.disabled (#94a3b8) was 2.6:1 and failed AA. */
+                      sx={{ color: hintColor || 'text.secondary', fontWeight: 500 }}
                     >
                       {hint}
                     </Typography>
@@ -202,11 +204,11 @@ export function StatCard({
                 {value}
               </Typography>
 
-              <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+              <Box sx={{ mt: 1.25, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                 {hint && (
                   <Typography
                     variant="caption"
-                    sx={{ color: hintColor || 'text.disabled', fontWeight: 500 }}
+                    sx={{ color: hintColor || 'text.secondary', fontWeight: 500 }}
                   >
                     {hint}
                   </Typography>

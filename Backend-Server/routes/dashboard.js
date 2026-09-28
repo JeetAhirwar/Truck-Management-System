@@ -37,6 +37,9 @@ router.get('/', async (req, res) => {
       if (diff < 0) expiredDocs.push({ ...d.toObject(), daysLeft: diff });
       else if (diff <= 30) expiringSoon.push({ ...d.toObject(), daysLeft: diff });
     });
+    // Most urgent first: the dashboard is a triage list, not a register.
+    expiredDocs.sort((a, b) => a.daysLeft - b.daysLeft);
+    expiringSoon.sort((a, b) => a.daysLeft - b.daysLeft);
 
     // This month stats
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -55,8 +58,13 @@ router.get('/', async (req, res) => {
       return false;
     }).length;
 
-    // FASTag low balance
-    const lowFastag = trucks.filter(t => t.fastag?.balance > 0 && t.fastag.balance < 1000);
+    // FASTag low balance. A truck sitting at exactly Rs.0 is the *most* urgent
+    // case, so the threshold must include it — the old `balance > 0 && < 1000`
+    // guard silently dropped every zero-balance truck from the alert list.
+    const lowFastag = trucks.filter(
+      t => typeof t.fastag?.balance === 'number' && t.fastag.balance < 1000
+    );
+    lowFastag.sort((a, b) => (a.fastag?.balance || 0) - (b.fastag?.balance || 0));
 
     res.json({
       summary: {
@@ -75,7 +83,12 @@ router.get('/', async (req, res) => {
         estimatedProfit: Math.round(totalProfit),
         pendingTrips,
         totalDrivers: drivers.length,
-        lowFastagCount: lowFastag.length
+        lowFastagCount: lowFastag.length,
+        /* Aggregate shortfall: how much must be recharged to clear the alert. */
+        fastagShortfall: Math.max(
+          0,
+          Math.round(lowFastag.reduce((sum, t) => sum + (1000 - (t.fastag?.balance || 0)), 0))
+        )
       },
       alerts: {
         expiredDocs: expiredDocs.slice(0, 10),
@@ -85,7 +98,12 @@ router.get('/', async (req, res) => {
           balance: t.fastag?.balance || 0
         }))
       },
-      recentTrips: trips.slice(0, 5)
+      // Trip.find() returns natural (oldest-first) order, so an unsorted
+      // slice(0, 5) shipped the 5 OLDEST trips to a panel labelled "Recent".
+      recentTrips: [...trips]
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, 5),
+      generatedAt: new Date().toISOString()
     });
   } catch (err) {
     console.error(err);
