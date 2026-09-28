@@ -132,6 +132,7 @@ export function StatCard({
   hint,
   hintColor,
   tone = '#2563eb',
+  valueColor,
   badge,
   footer,
   delay = 0,
@@ -168,7 +169,7 @@ export function StatCard({
           {layout === 'stacked' ? (
             <>
               {iconBox}
-              <Typography variant="h4" noWrap sx={{ mt: 2, fontWeight: 'bold' }}>
+              <Typography variant="h4" noWrap sx={{ mt: 2, fontWeight: 'bold', ...(valueColor && { color: valueColor }) }}>
                 {value}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -200,7 +201,7 @@ export function StatCard({
                 {iconBox}
               </Stack>
 
-              <Typography variant="h4" noWrap sx={{ mt: 1.5 }}>
+              <Typography variant="h4" noWrap sx={{ mt: 1.5, ...(valueColor && { color: valueColor }) }}>
                 {value}
               </Typography>
 

@@ -157,7 +157,7 @@ export default function Drivers() {
   const assigned = drivers.filter((d) => d.assignedTruck).length;
 
   return (
-    <Stack spacing={3}>
+    <Stack spacing={3} sx={{ pb: 12 }}>
       <PageHeader
         title="Drivers"
         caption="Roster & truck assignments"

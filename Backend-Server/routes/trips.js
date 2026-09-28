@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const Trip = require('../models/Trip');
 const Truck = require('../models/Truck');
+const Driver = require('../models/Driver');
 const Settings = require('../models/Settings');
 const { protect } = require('../middleware/auth');
 const { fullTripCalc, validateDistance } = require('../utils/calc');
@@ -55,6 +56,24 @@ async function generateTripId() {
 }
 
 const isDuplicateKey = (err) => err && (err.code === 11000 || err.code === 11001);
+
+/** Who runs this trip: explicit `driver` beats the truck's currentDriver. */
+const withDriverFallback = (trip) => {
+  const isObj = (x) => Boolean(x && typeof x === 'object');
+  if (!isObj(trip.driver) && isObj(trip.truck?.currentDriver)) {
+    trip.driver = trip.truck.currentDriver;
+    if (!trip.driverName) trip.driverName = trip.truck.currentDriver.name || '';
+  }
+  return trip;
+};
+
+/** Populates truck (with its current driver) alongside the trip's own driver. */
+const populateNameFields = (query) =>
+  query.populate({
+    path: 'truck',
+    select: 'truckNumber model',
+    populate: { path: 'currentDriver', select: 'name mobile licenseNumber licenseType experience' },
+  });
 
 const TRIP_STATUSES = ['Planned', 'Assigned', 'Started', 'In Transit', 'Reached', 'Completed', 'Cancelled'];
 const ACTIVE_TRIP_STATUSES = ['Started', 'In Transit', 'Reached'];
@@ -207,11 +226,10 @@ router.post('/calculate', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const trips = await Trip.find()
-      .populate('truck', 'truckNumber model')
+    const trips = await populateNameFields(Trip.find())
       .populate('driver', 'name mobile licenseNumber licenseType experience')
       .sort({ createdAt: -1 });
-    res.json(trips);
+    res.json(trips.map(withDriverFallback));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -219,11 +237,11 @@ router.get('/', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
-    const trip = await Trip.findById(req.params.id)
-      .populate('truck')
-      .populate('driver');
+    let trip = await populateNameFields(
+      Trip.findById(req.params.id).populate('driver')
+    );
     if (!trip) return res.status(404).json({ error: 'Trip not found' });
-    res.json(trip);
+    res.json(withDriverFallback(trip));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -272,11 +290,19 @@ router.post('/', async (req, res) => {
     const geometry = simplifyGeometry(route.geometry);
     const status = TRIP_STATUSES.includes(b.status) ? b.status : 'Started';
 
+    // No explicit driver? Fall back to whoever is currently assigned to the truck.
+    let driverId = b.driver || truck.currentDriver || undefined;
+    let driverName = b.driverName || '';
+    if (!driverName && driverId) {
+      const d = await Driver.findById(driverId);
+      driverName = d?.name || '';
+    }
+
     const doc = {
       truck: truck._id,
       truckNumber: truck.truckNumber,
-      driver: b.driver || undefined,
-      driverName: b.driverName || '',
+      driver: driverId,
+      driverName,
       from,
       to,
       origin,

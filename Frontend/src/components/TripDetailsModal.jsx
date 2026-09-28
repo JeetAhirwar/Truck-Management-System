@@ -87,9 +87,13 @@ function StatCard({ icon: Icon, label, value, tone = 'text.primary' }) {
 }
 
 function DriverSection({ trip }) {
-  // `driver` is a populated object from GET /trips; plain ObjectId (or
-  // missing) after older writes falls back to the driverName snapshot.
-  const driver = trip.driver && typeof trip.driver === 'object' ? trip.driver : null;
+  // `driver` is a populated object from GET /trips; else we fall back to the
+  // driver currently assigned to the truck (truck.currentDriver), then to the
+  // driverName snapshot taken when the trip was created.
+  const truckDriver = trip.truck?.currentDriver;
+  const driver =
+    (trip.driver && typeof trip.driver === 'object' ? trip.driver : null) ||
+    (truckDriver && typeof truckDriver === 'object' ? truckDriver : null);
 
   return (
     <Box

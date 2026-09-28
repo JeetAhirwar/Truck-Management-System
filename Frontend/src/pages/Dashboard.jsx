@@ -488,12 +488,12 @@ export default function Dashboard() {
       )}
       */}
 
-      {/* ================= KPI row: 4 equal, scannable cards ================= */}
+      {/* ================= KPI row: 5 equal, scannable cards ================= */}
       <Box
         sx={{
           display: 'grid',
           gap: GAP,
-          gridTemplateColumns: { xs: 'repeat(2, minmax(0,1fr))', md: 'repeat(4, minmax(0,1fr))' },
+          gridTemplateColumns: { xs: 'repeat(2, minmax(0,1fr))', md: 'repeat(5, minmax(0,1fr))' },
         }}
       >
         <StatCard
@@ -501,8 +501,17 @@ export default function Dashboard() {
           label="Revenue"
           value={inrCompact(revenue)}
           tone={TONE.green}
-          hint={`Profit ${inrCompact(profit)} · ${margin}% margin`}
+          hint="Gross income across all trips"
           delay={0}
+        />
+        <StatCard
+          icon={TrendingUp}
+          label="Net profit"
+          value={inrCompact(profit)}
+          tone={TONE.green}
+          valueColor="success.main"
+          hint={`${margin}% margin`}
+          delay={0.02}
         />
         <StatCard
           icon={Speed}
