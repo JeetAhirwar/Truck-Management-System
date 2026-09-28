@@ -32,8 +32,10 @@ export default function Login() {
             <div className="inline-flex w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 items-center justify-center shadow-lg shadow-brand-500/30 mb-4">
               <Truck className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-bold">TruckPro</h1>
-            <p className="text-slate-500 mt-1">Fleet Management System</p>
+            <h1 className="text-2xl font-bold">VTMS</h1>
+            <p className="text-slate-500 mt-1.5 text-[11px] uppercase tracking-[0.28em] italic font-light">
+              Vehicle &amp; Transport Management System
+            </p>
           </div>
           <form onSubmit={submit} className="space-y-5">
             {error && <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 text-sm">{error}</div>}

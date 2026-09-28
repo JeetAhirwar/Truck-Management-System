@@ -36,10 +36,11 @@ import {
   DarkMode,
   LightMode,
 } from '@mui/icons-material';
-import { alpha } from '@mui/material/styles';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme as useColorMode } from '../hooks/useTheme';
 import NotificationBell from './NotificationBell';
+import logo from '../assets/transparent- logo.png';
+import darkLogo from '../assets/dark mode logo.png';
 
 const NAV_ITEMS = [
   { to: '/', icon: DashboardIcon, label: 'Dashboard', desc: 'Fleet overview & live alerts' },
@@ -60,7 +61,6 @@ const isCurrent = (pathname, to) =>
 const NavContent = memo(function NavContent({ onNavigate }) {
   const { user, logout } = useAuth();
   const { dark, toggle } = useColorMode();
-  const theme = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -76,36 +76,18 @@ const NavContent = memo(function NavContent({ onNavigate }) {
         sx={{
           display: 'flex',
           alignItems: 'center',
-          gap: 1.5,
+          justifyContent: 'center',
           px: 2.5,
-          py: 2.25,
           borderBottom: 1,
           borderColor: 'divider',
         }}
       >
         <Box
-          sx={{
-            width: 40,
-            height: 40,
-            borderRadius: 2.5,
-            display: 'grid',
-            placeItems: 'center',
-            color: '#fff',
-            flexShrink: 0,
-            background: `linear-gradient(135deg, ${theme.palette.primary.light}, ${theme.palette.primary.dark})`,
-            boxShadow: `0 10px 22px -10px ${alpha(theme.palette.primary.main, 0.9)}`,
-          }}
-        >
-          <LocalShipping fontSize="small" />
-        </Box>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="subtitle1" fontWeight={800} sx={{ lineHeight: 1.15 }}>
-            TruckPro
-          </Typography>
-          <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
-            Fleet Management
-          </Typography>
-        </Box>
+          component="img"
+          src={dark ? darkLogo : logo}
+          alt="VTMS logo"
+          sx={{ width: 88, height: 88, objectFit: 'contain' }}
+        />
       </Box>
 
       <List disablePadding sx={{ flex: 1, overflowY: 'auto', py: 1.5 }}>
@@ -240,6 +222,20 @@ export default function Layout() {
             >
               <MenuIcon />
             </IconButton>
+
+            <Box sx={{ minWidth: 0, display: { xs: 'none', sm: 'block' } }}>
+              <Typography variant="subtitle1" fontWeight={800} sx={{ lineHeight: 1.1, letterSpacing: '0.06em' }}>
+                VTMS
+              </Typography>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                noWrap
+                sx={{ display: 'block', fontStyle: 'italic', fontSize: 10.5, lineHeight: 1.2 }}
+              >
+                Vehicle &amp; Transport Management System
+              </Typography>
+            </Box>
 
             <Box sx={{ flexGrow: 1 }} />
 
