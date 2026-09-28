@@ -254,19 +254,21 @@ const fade = {
   show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 0.61, 0.36, 1] } },
 };
 
-function Reveal({ children, delay = 0, ...rest }) {
+function Reveal({ children, delay = 0, sx, ...rest }) {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-80px' });
   return (
-    <motion.div
-      ref={ref}
-      initial="hidden"
-      animate={inView ? 'show' : 'hidden'}
-      variants={{ ...fade, show: { ...fade.show, transition: { ...fade.show.transition, delay } } }}
-      {...rest}
-    >
-      {children}
-    </motion.div>
+    <Box sx={sx}>
+      <motion.div
+        ref={ref}
+        initial="hidden"
+        animate={inView ? 'show' : 'hidden'}
+        variants={{ ...fade, show: { ...fade.show, transition: { ...fade.show.transition, delay } } }}
+        {...rest}
+      >
+        {children}
+      </motion.div>
+    </Box>
   );
 }
 
