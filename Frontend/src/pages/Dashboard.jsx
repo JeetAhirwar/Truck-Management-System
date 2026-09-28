@@ -745,7 +745,7 @@ export default function Dashboard() {
           >
             {hasTrips ? (
               <TableContainer>
-                <Table size="small" sx={{ minWidth: 0 }}>
+                <Table size="small" sx={{ minWidth: 0, width: '100%', tableLayout: 'fixed' }}>
                   {/* MUI v9 dropped TableCaption, so a raw <caption> carries
                       the accessible name for screen readers. */}
                   <caption style={SR_ONLY}>
@@ -753,28 +753,20 @@ export default function Dashboard() {
                   </caption>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Trip</TableCell>
-                      <TableCell sx={{ minWidth: 0 }}>Route</TableCell>
-                      {/* Progressive disclosure: distance/margin drop below md,
-                          revenue below sm. Mobile keeps 4 columns and never
-                          scrolls sideways. */}
-                      <TableCell align="right" sx={{ display: { xs: 'none', md: 'table-cell' } }}>
+                      <TableCell sx={{ width: { xs: 96, sm: 132 } }}>Trip</TableCell>
+                      <TableCell>Route</TableCell>
+                      {/* Fixed column widths (tableLayout:fixed) keep the table
+                          inside the panel so it never scrolls sideways. */}
+                      <TableCell align="right" sx={{ width: 88, display: { xs: 'none', md: 'table-cell' } }}>
                         Distance
                       </TableCell>
-                      <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                      <TableCell align="right" sx={{ width: 92, display: { xs: 'none', sm: 'table-cell' } }}>
                         Revenue
                       </TableCell>
-                      <TableCell align="right" sx={{ display: { xs: 'none', lg: 'table-cell' } }}>
+                      <TableCell align="right" sx={{ width: 88, display: { xs: 'none', lg: 'table-cell' } }}>
                         Margin
                       </TableCell>
-                      <TableCell>Status</TableCell>
-                      {/* position:relative anchors the screen-reader-only label
-                          so it cannot extend past the viewport. */}
-                      <TableCell align="right" sx={{ position: 'relative' }}>
-                        <Box component="span" sx={SR_ONLY}>
-                          Actions
-                        </Box>
-                      </TableCell>
+                      <TableCell sx={{ width: { xs: 108, sm: 132 } }}>Status</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -826,21 +818,21 @@ export default function Dashboard() {
                               {inr(tripProfit)}
                             </Typography>
                           </TableCell>
-                          <TableCell>
-                            <SoftChip status={t.status} />
-                          </TableCell>
-                          <TableCell align="right">
-                            <Tooltip title={`Open ${t.tripId}`}>
-                              <IconButton
-                                size="small"
-                                component={RouterLink}
-                                to="/trips"
-                                aria-label={`View trip ${t.tripId}`}
-                                sx={{ color: 'text.secondary' }}
-                              >
-                                <VisibilityOutlined fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                          <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', lineHeight: 1 }}>
+                              <SoftChip status={t.status} />
+                              <Tooltip title={`Open ${t.tripId}`}>
+                                <IconButton
+                                  size="small"
+                                  component={RouterLink}
+                                  to="/trips"
+                                  aria-label={`View trip ${t.tripId}`}
+                                  sx={{ color: 'text.secondary', width: 28, height: 28 }}
+                                >
+                                  <VisibilityOutlined fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Stack>
                           </TableCell>
                         </TableRow>
                       );
