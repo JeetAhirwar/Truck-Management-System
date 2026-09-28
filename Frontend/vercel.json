@@ -6,7 +6,7 @@
       "destination": "https://truckappbackend.vercel.app/api/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/:path*",
       "destination": "/index.html"
     }
   ]
