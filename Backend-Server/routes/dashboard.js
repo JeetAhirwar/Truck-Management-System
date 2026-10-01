@@ -43,12 +43,16 @@ router.get('/', async (req, res) => {
 
     // This month stats
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    const monthTrips = trips.filter(t => new Date(t.createdAt) >= monthStart);
+    // Cancelled trips never ran, so they contribute nothing to distance,
+    // fuel or earnings — they are reported on the Trips loss view instead.
+    const liveTrips = trips.filter(t => t.status !== 'Cancelled');
+    const monthTrips = liveTrips.filter(t => new Date(t.createdAt) >= monthStart);
     const totalDistance = monthTrips.reduce((s, t) => s + (t.distance || 0), 0);
     const totalFuel = monthTrips.reduce((s, t) => s + (t.fuelRequired || 0), 0);
     const totalToll = tolls.reduce((s, t) => s + (t.amount || 0), 0);
-    const totalRevenue = trips.reduce((s, t) => s + (t.revenue || 0), 0);
-    const totalProfit = trips.reduce((s, t) => s + (t.profit || 0), 0);
+    const totalRevenue = liveTrips.reduce((s, t) => s + (t.revenue || 0), 0);
+    const totalProfit = liveTrips.reduce((s, t) => s + (t.profit || 0), 0);
+    const cancelledTrips = trips.filter(t => t.status === 'Cancelled');
     const pendingTrips = trips.filter(t => !['Completed', 'Cancelled'].includes(t.status)).length;
 
     // Maintenance due
@@ -81,6 +85,9 @@ router.get('/', async (req, res) => {
         totalTollExpense: Math.round(totalToll),
         revenue: Math.round(totalRevenue),
         estimatedProfit: Math.round(totalProfit),
+        cancelledCount: cancelledTrips.length,
+        /* Contract value that was booked on trips that never ran. */
+        revenueLost: Math.round(cancelledTrips.reduce((s, t) => s + (t.revenue || 0), 0)),
         pendingTrips,
         totalDrivers: drivers.length,
         lowFastagCount: lowFastag.length,

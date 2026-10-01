@@ -56,6 +56,7 @@ export const STATUS_TONES = {
   Valid: '#059669',
   'Expiring Soon': '#d97706',
   Expired: '#dc2626',
+  'No Expiry': '#64748b',
   // finance
   Profit: '#059669',
   Loss: '#dc2626',
@@ -321,7 +322,7 @@ export function SearchField({ sx, ...props }) {
     <TextField
       size="small"
       {...props}
-      sx={{ minWidth: { xs: '100%', sm: 260 }, ...sx }}
+      sx={{ minWidth: { xs: '100%', sm: 300 }, ...sx }}
       slotProps={{
         input: {
           startAdornment: (

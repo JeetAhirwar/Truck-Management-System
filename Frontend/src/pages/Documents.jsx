@@ -37,6 +37,8 @@ import Alert from '@mui/material/Alert';
 import api from '../utils/api';
 import DocumentDropzone from '../components/DocumentDropzone';
 import DocumentPreview from '../components/DocumentPreview';
+import ViewToggle, { VIEW_LIST } from '../components/ViewToggle';
+import { getDocumentTypes } from '../utils/vehicleDocuments';
 import {
   EmptyState,
   PageHeader,
@@ -46,10 +48,19 @@ import {
   StatGrid,
 } from '../components/ui';
 
-const types = ['RC', 'Insurance', 'PUC', 'Fitness Certificate', 'Permit', 'National Permit', 'Tax', 'Roadworthiness', 'Other'];
-const empty = { truck: '', truckNumber: '', docType: 'Insurance', docNumber: '', issueDate: '', expiryDate: '', remarks: '' };
+const empty = {
+  truck: '',
+  truckNumber: '',
+  docType: 'Insurance',
+  customLabel: '',
+  issuingAuthority: '',
+  docNumber: '',
+  issueDate: '',
+  expiryDate: '',
+  remarks: '',
+};
 const EXTS = ['pdf', 'jpg', 'jpeg', 'png'];
-const FILTERS = ['all', 'Valid', 'Expiring Soon', 'Expired'];
+const FILTERS = ['all', 'Valid', 'Expiring Soon', 'Expired', 'No Expiry'];
 
 function Spec({ label, children }) {
   return (
@@ -76,6 +87,10 @@ export default function Documents() {
   const [filter, setFilter] = useState('all');
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(null);
+  const [types, setTypes] = useState([]);
+  const [expiryRequired, setExpiryRequired] = useState([]);
+  const [view, setView] = useState(VIEW_LIST);
+  const [sortBy, setSortBy] = useState('default');
 
   const fetch = async () => {
     try {
@@ -90,6 +105,18 @@ export default function Documents() {
     fetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Document types come from the backend so the enum stays the single source
+  // of truth; the helper falls back to a static list if the call fails.
+  useEffect(() => {
+    getDocumentTypes().then(({ types: t, expiryRequired: x }) => {
+      setTypes(t);
+      setExpiryRequired(x);
+    });
+  }, []);
+
+  const needsExpiry = expiryRequired.includes(form.docType);
+  const isCustom = form.docType === 'Other';
 
   const closeForm = () => {
     setModal(false);
@@ -113,6 +140,8 @@ export default function Documents() {
       truck: d.truck?._id || d.truck,
       truckNumber: d.truckNumber,
       docType: d.docType,
+      customLabel: d.customLabel || '',
+      issuingAuthority: d.issuingAuthority || '',
       docNumber: d.docNumber || '',
       issueDate: d.issueDate ? String(d.issueDate).slice(0, 10) : '',
       expiryDate: d.expiryDate ? String(d.expiryDate).slice(0, 10) : '',
@@ -127,6 +156,10 @@ export default function Documents() {
 
   const save = async (e) => {
     e.preventDefault();
+    if (isCustom && !form.customLabel.trim()) {
+      setError('Please enter a document name for the "Other" type');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -137,6 +170,8 @@ export default function Documents() {
       fd.append('truck', form.truck);
       fd.append('truckNumber', truck?.truckNumber || form.truckNumber || '');
       fd.append('docType', form.docType);
+      if (form.customLabel) fd.append('customLabel', form.customLabel);
+      if (form.issuingAuthority) fd.append('issuingAuthority', form.issuingAuthority);
       fd.append('docNumber', form.docNumber || '');
       fd.append('issueDate', form.issueDate || '');
       fd.append('expiryDate', form.expiryDate || '');
@@ -155,7 +190,7 @@ export default function Documents() {
   };
 
   const del = async (d) => {
-    if (!window.confirm(`Delete ${d.docType} for ${d.truckNumber}? The stored file will be removed too.`)) return;
+    if (!window.confirm(`Delete ${d.displayType || d.docType} for ${d.truckNumber}? The stored file will be removed too.`)) return;
     try {
       await api.delete(`/documents/${d._id}`);
       fetch();
@@ -168,15 +203,41 @@ export default function Documents() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return docs.filter((d) => {
+    const list = docs.filter((d) => {
       const match =
         (d.truckNumber || '').toLowerCase().includes(q) ||
         (d.docType || '').toLowerCase().includes(q) ||
+        (d.customLabel || '').toLowerCase().includes(q) ||
+        (d.issuingAuthority || '').toLowerCase().includes(q) ||
         (d.docNumber || '').toLowerCase().includes(q);
       if (filter === 'all') return match;
       return match && d.status === filter;
     });
-  }, [docs, search, filter]);
+    if (sortBy === 'default') return list;
+    const arr = [...list];
+    const str = (v) => String(v || '');
+    const expiry = (d) => (d.expiryDate ? new Date(d.expiryDate).getTime() : Number.MAX_SAFE_INTEGER);
+    switch (sortBy) {
+      case 'expiryAsc':
+        arr.sort((a, b) => expiry(a) - expiry(b));
+        break;
+      case 'expiryDesc':
+        arr.sort((a, b) => expiry(b) - expiry(a));
+        break;
+      case 'type':
+        arr.sort((a, b) => str(a.displayType || a.docType).localeCompare(str(b.displayType || b.docType)));
+        break;
+      case 'truck':
+        arr.sort((a, b) => str(a.truckNumber).localeCompare(str(b.truckNumber)));
+        break;
+      case 'newest':
+        arr.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        break;
+      default:
+        break;
+    }
+    return arr;
+  }, [docs, search, filter, sortBy]);
 
   const count = (s) => docs.filter((d) => d.status === s).length;
 
@@ -235,7 +296,22 @@ export default function Documents() {
           placeholder="Search truck, type or number…"
           sx={{ flex: 1 }}
         />
-        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+        <TextField
+          select
+          size="small"
+          label="Sort by"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          sx={{ minWidth: 215 }}
+        >
+          <MenuItem value="default">Default (expiry first)</MenuItem>
+          <MenuItem value="expiryAsc">Expiry (soonest first)</MenuItem>
+          <MenuItem value="expiryDesc">Expiry (latest first)</MenuItem>
+          <MenuItem value="type">Document type (A→Z)</MenuItem>
+          <MenuItem value="truck">Truck number (A→Z)</MenuItem>
+          <MenuItem value="newest">Recently added</MenuItem>
+        </TextField>
+        <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
           {FILTERS.map((f) => (
             <Chip
               key={f}
@@ -247,6 +323,7 @@ export default function Documents() {
             />
           ))}
         </Stack>
+        <ViewToggle value={view} onChange={setView} />
       </Stack>
 
       {filtered.length === 0 ? (
@@ -266,6 +343,71 @@ export default function Documents() {
             ) : null
           }
         />
+      ) : view === VIEW_LIST ? (
+        <Stack spacing={1}>
+          {filtered.map((d) => {
+            const ext = (d.fileExt || '').toLowerCase();
+            const canPreview = d.hasFile && EXTS.includes(ext);
+            return (
+              <Card key={d._id} variant="outlined" sx={{ borderRadius: 1 }}>
+                <CardContent sx={{ p: '12px 16px !important', '&:last-child': { pb: '12px !important' } }}>
+                  <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={2}
+                    sx={{ alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between' }}
+                  >
+                    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
+                      <Avatar variant="rounded" sx={{ width: 38, height: 38, borderRadius: '12px', bgcolor: '#ede9fe', color: '#7c3aed' }}>
+                        <Description fontSize="small" />
+                      </Avatar>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                          <Typography variant="subtitle2" noWrap>
+                            {d.displayType || d.docType}
+                          </Typography>
+                          <SoftChip status={d.status} />
+                          {d.source === 'rc-suggested' && <SoftChip tone="#4f46e5" label="From RC" />}
+                        </Stack>
+                        <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+                          {d.truckNumber}
+                          {d.docNumber ? ` · No: ${d.docNumber}` : ''}
+                          {d.issuingAuthority ? ` · ${d.issuingAuthority}` : ''}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {d.expiryDate
+                            ? `Expires ${new Date(d.expiryDate).toLocaleDateString()}`
+                            : 'No expiry date'}
+                          {d.hasFile ? ` · ${(ext || 'file').toUpperCase()}` : ' · no file'}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<VisibilityOutlined fontSize="small" />}
+                        onClick={() => setPreview(d)}
+                        disabled={!canPreview}
+                      >
+                        View
+                      </Button>
+                      <Tooltip title="Edit document">
+                        <IconButton size="small" onClick={() => openEdit(d)} aria-label={`Edit ${d.displayType || d.docType}`} sx={{ border: 1, borderColor: 'divider' }}>
+                          <EditOutlined fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Delete document">
+                        <IconButton size="small" color="error" onClick={() => del(d)} aria-label={`Delete ${d.displayType || d.docType}`} sx={{ border: 1, borderColor: 'divider' }}>
+                          <DeleteOutlined fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </Stack>
       ) : (
         <Grid container spacing={2.5}>
           {filtered.map((d, i) => {
@@ -287,9 +429,12 @@ export default function Documents() {
                             <Description />
                           </Avatar>
                           <Box sx={{ minWidth: 0 }}>
-                            <Typography variant="subtitle1" noWrap>
-                              {d.docType}
-                            </Typography>
+                            <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                              <Typography variant="subtitle1" noWrap>
+                                {d.displayType || d.docType}
+                              </Typography>
+                              {d.source === 'rc-suggested' && <SoftChip tone="#4f46e5" label="From RC" />}
+                            </Stack>
                             <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
                               {d.truckNumber}
                             </Typography>
@@ -304,24 +449,37 @@ export default function Documents() {
                             {d.docNumber || '—'}
                           </Typography>
                         </Spec>
+                        {d.issuingAuthority && (
+                          <Spec label="Issued By">
+                            <Typography variant="body2" fontWeight={600}>
+                              {d.issuingAuthority}
+                            </Typography>
+                          </Spec>
+                        )}
                         <Spec label="Expiry">
                           <Typography variant="body2" fontWeight={600}>
-                            {d.expiryDate ? new Date(d.expiryDate).toLocaleDateString() : '—'}
+                            {d.expiryDate ? new Date(d.expiryDate).toLocaleDateString() : 'No expiry'}
                           </Typography>
                         </Spec>
                         <Spec label="Days Left">
-                          <Typography
-                            variant="body2"
-                            fontWeight={700}
-                            sx={{
-                              color:
-                                d.daysLeft < 0 ? 'error.main' : d.daysLeft <= 30 ? 'warning.main' : 'success.main',
-                            }}
-                          >
-                            {d.daysLeft < 0 ? `${Math.abs(d.daysLeft)} overdue` : `${d.daysLeft} days`}
-                          </Typography>
+                          {d.expiryDate ? (
+                            <Typography
+                              variant="body2"
+                              fontWeight={700}
+                              sx={{
+                                color:
+                                  d.daysLeft < 0 ? 'error.main' : d.daysLeft <= 30 ? 'warning.main' : 'success.main',
+                              }}
+                            >
+                              {d.daysLeft < 0 ? `${Math.abs(d.daysLeft)} overdue` : `${d.daysLeft} days`}
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" color="text.secondary">
+                              —
+                            </Typography>
+                          )}
                         </Spec>
-                        {d.hasFile && (
+                        {d.hasFile ? (
                           <Spec label="File">
                             <Stack direction="row" spacing={0.75}   sx={{ alignItems: 'center', justifyContent: 'flex-end' }}>
                               <SoftChip tone="#4f46e5" label={(ext || 'file').toUpperCase()} />
@@ -331,6 +489,12 @@ export default function Documents() {
                                 </Typography>
                               )}
                             </Stack>
+                          </Spec>
+                        ) : (
+                          <Spec label="File">
+                            <Typography variant="body2" color="warning.main" fontWeight={600}>
+                              Not uploaded
+                            </Typography>
                           </Spec>
                         )}
                       </Box>
@@ -349,12 +513,12 @@ export default function Documents() {
                           View
                         </Button>
                         <Tooltip title="Edit document">
-                          <IconButton size="small" onClick={() => openEdit(d)} aria-label={`Edit ${d.docType}`} sx={{ border: 1, borderColor: 'divider' }}>
+                          <IconButton size="small" onClick={() => openEdit(d)} aria-label={`Edit ${d.displayType || d.docType}`} sx={{ border: 1, borderColor: 'divider' }}>
                             <EditOutlined fontSize="small" />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Delete document">
-                          <IconButton size="small" color="error" onClick={() => del(d)} aria-label={`Delete ${d.docType}`} sx={{ border: 1, borderColor: 'divider' }}>
+                          <IconButton size="small" color="error" onClick={() => del(d)} aria-label={`Delete ${d.displayType || d.docType}`} sx={{ border: 1, borderColor: 'divider' }}>
                             <DeleteOutlined fontSize="small" />
                           </IconButton>
                         </Tooltip>
@@ -403,10 +567,39 @@ export default function Documents() {
                 </MenuItem>
               ))}
             </TextField>
+            {isCustom && (
+              <TextField
+                label="Document Name *"
+                value={form.customLabel}
+                onChange={set('customLabel')}
+                placeholder="e.g. Police NOC, Waybill"
+                required
+              />
+            )}
+            <TextField
+              label="Issuing Authority"
+              value={form.issuingAuthority}
+              onChange={set('issuingAuthority')}
+              placeholder="e.g. MP RTO Indore"
+            />
             <TextField label="Document No" value={form.docNumber} onChange={set('docNumber')} />
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-              <TextField label="Issue Date" type="date" value={form.issueDate} onChange={set('issueDate')} InputLabelProps={{ shrink: true }} />
-              <TextField label="Expiry *" type="date" value={form.expiryDate} onChange={set('expiryDate')} required InputLabelProps={{ shrink: true }} />
+              <TextField
+                label="Issue Date"
+                type="date"
+                value={form.issueDate}
+                onChange={set('issueDate')}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+              <TextField
+                label={needsExpiry ? 'Expiry Date *' : 'Expiry Date (optional)'}
+                type="date"
+                value={form.expiryDate}
+                onChange={set('expiryDate')}
+                required={needsExpiry}
+                helperText={needsExpiry ? undefined : 'Leave blank for lifetime documents (e.g. NOC, RC)'}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
             </Box>
             <Box>
               <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>

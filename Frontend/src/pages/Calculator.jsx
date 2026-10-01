@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
   Alert,
@@ -29,6 +29,7 @@ import {
   Clear as ClearIcon,
   CurrencyRupee,
   Directions,
+  DoneAll,
   LocalGasStation,
   Place as PlaceIcon,
   PlayArrow,
@@ -239,9 +240,15 @@ function thinGeometry(geometry, maxPoints = 1500) {
 
 export default function Calculator() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const completeTripId = location.state?.completeTripId || '';
+
   const [trucks, setTrucks] = useState([]);
+  const [trip, setTrip] = useState(null);
+  const [tripLoading, setTripLoading] = useState(Boolean(completeTripId));
   const [form, setForm] = useState({
     truckId: '',
+    mileage: '',
     distance: '',
     revenue: '',
     tollCost: '',
@@ -258,18 +265,26 @@ export default function Calculator() {
   const [autoRan, setAutoRan] = useState(false);
   const [error, setError] = useState('');
   const [warning, setWarning] = useState('');
-  const [showEstimated, setShowEstimated] = useState(false);
   const [saving, setSaving] = useState(false);
   const [snack, setSnack] = useState({ open: false, severity: 'error', message: '' });
 
   const notify = (severity, message) => setSnack({ open: true, severity, message });
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
+  /* Picking a truck seeds its stored average mileage into the field. */
+  const onTruckChange = (e) => {
+    const truckId = e.target.value;
+    const t = trucks.find((x) => x._id === truckId);
+    setForm((f) => ({ ...f, truckId, mileage: String(t?.currentMileage ?? '') }));
+  };
+
   useEffect(() => {
     api
       .get('/trucks')
       .then((r) => setTrucks(r.data))
       .catch(() => notify('error', 'Could not load trucks'));
+    // In edit mode the trip's own figures win over the settings defaults.
+    if (completeTripId) return;
     api
       .get('/settings')
       .then((r) =>
@@ -280,9 +295,60 @@ export default function Calculator() {
         }))
       )
       .catch(() => {});
-  }, []);
+  }, [completeTripId]);
+
+  /* ------- edit mode: pull the trip in and pre-fill the quote ------- */
+  useEffect(() => {
+    if (!completeTripId) return;
+    let alive = true;
+    api
+      .get(`/trips/${completeTripId}`)
+      .then(({ data }) => {
+        if (!alive) return;
+        if (['Completed', 'Cancelled'].includes(data.status)) {
+          notify('error', `${data.tripId} is already ${data.status.toLowerCase()}.`);
+          navigate('/trips', { replace: true });
+          return;
+        }
+        setTrip(data);
+        setForm({
+          truckId: data.truck?._id || data.truck || '',
+          mileage: data.mileageUsed != null ? String(data.mileageUsed) : '',
+          distance: data.distance != null ? String(data.distance) : '',
+          revenue: data.revenue ? String(data.revenue) : '',
+          tollCost: data.tollCost ? String(data.tollCost) : '',
+          driverExpense: data.driverExpense ? String(data.driverExpense) : '',
+          otherExpenses: data.otherExpenses ? String(data.otherExpenses) : '',
+        });
+        if (data.origin?.lat != null) {
+          setOrigin({ label: data.origin.label, lat: data.origin.lat, lng: data.origin.lng });
+        }
+        if (data.destination?.lat != null) {
+          setDestination({
+            label: data.destination.label,
+            lat: data.destination.lat,
+            lng: data.destination.lng,
+          });
+        }
+        // Show the stored polyline straight away instead of waiting on OSRM.
+        const geom = data.routeGeometry?.coordinates;
+        if (Array.isArray(geom)) setRouteCoords(geom.map(([lng, lat]) => [lat, lng]));
+      })
+      .catch((err) => {
+        if (!alive) return;
+        notify('error', err.response?.data?.error || 'Could not load that trip');
+        navigate('/trips', { replace: true });
+      })
+      .finally(() => {
+        if (alive) setTripLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [completeTripId, navigate]);
 
   const hasRoute = Boolean(origin && destination);
+  const editMode = Boolean(trip);
 
   /* ---------------- payload ---------------- */
   const buildPayload = (skipTolls) => {
@@ -295,6 +361,7 @@ export default function Calculator() {
     }
     // Only send expense keys the user filled in, so the server falls back to
     // the configured settings instead of a silent 0.
+    if (form.mileage !== '') body.mileage = Number(form.mileage);
     if (form.revenue !== '') body.revenue = Number(form.revenue);
     if (form.tollCost !== '') body.tollCost = Number(form.tollCost);
     if (form.driverExpense !== '') body.driverExpense = Number(form.driverExpense);
@@ -338,7 +405,6 @@ export default function Calculator() {
     try {
       const { data } = await api.post('/trips/calculate', buildPayload(false));
       setResult(data);
-      setShowEstimated(data.isEstimatedToll === true);
       setAutoRan(auto);
       setForm((f) => ({ ...f, distance: String(data.distance ?? '') }));
       const coords = data.route?.geometry?.coordinates;
@@ -363,7 +429,6 @@ export default function Calculator() {
         try {
           const { data } = await api.post('/trips/calculate', buildPayload(true));
           setResult(data);
-          setShowEstimated(data.isEstimatedToll === true);
           setAutoRan(auto);
           setForm((f) => ({ ...f, distance: String(data.distance ?? '') }));
           const coords = data.route?.geometry?.coordinates;
@@ -418,6 +483,7 @@ export default function Calculator() {
     try {
       const payload = {
         truck: form.truckId,
+        mileage: form.mileage === '' ? undefined : Number(form.mileage),
         from: origin?.label || 'Origin',
         to: destination?.label || 'Destination',
         origin: origin ? { label: origin.label, lat: origin.lat, lng: origin.lng } : undefined,
@@ -426,7 +492,9 @@ export default function Calculator() {
           : undefined,
         distance: Number(result.distance),
         revenue: form.revenue === '' ? 0 : Number(form.revenue),
-        tollCost: Number(toll?.cost ?? form.tollCost ?? 0),
+        // The typed toll always wins; blank falls back to the resolved figure.
+        tollCost:
+          form.tollCost !== '' ? Number(form.tollCost) : Number(toll?.cost ?? 0),
         driverExpense: form.driverExpense === '' ? undefined : Number(form.driverExpense),
         otherExpenses: form.otherExpenses === '' ? undefined : Number(form.otherExpenses),
         isEstimatedToll: result.isEstimatedToll === true,
@@ -467,6 +535,49 @@ export default function Calculator() {
   const waitingForTruck = hasRoute && !form.truckId;
   const canStartTrip = Boolean(result && form.truckId && result.distance > 0 && !loading);
 
+  /* ---- edit mode: the quote may be manual-distance, so no result needed ---- */
+  const canComplete = Boolean(
+    trip &&
+      !tripLoading &&
+      !loading &&
+      (result ? result.distance > 0 : Number(form.distance) > 0)
+  );
+
+  /* ------------- Update & Mark as Complete: patch the existing trip ------------- */
+  const completeTrip = async () => {
+    if (!trip || !canComplete) return;
+    setSaving(true);
+    try {
+      const distance = Number(result?.distance ?? form.distance);
+      // Undefined keys are ignored by the API, so blank inputs keep stored values.
+      const patch = {
+        status: 'Completed',
+        distance,
+        revenue: form.revenue === '' ? undefined : Number(form.revenue),
+        tollCost:
+          form.tollCost !== '' ? Number(form.tollCost) : result?.toll?.cost,
+        mileageUsed: form.mileage === '' ? undefined : Number(form.mileage),
+        driverExpense:
+          form.driverExpense === '' ? undefined : Number(form.driverExpense),
+        otherExpenses:
+          form.otherExpenses === '' ? undefined : Number(form.otherExpenses),
+      };
+      const { data } = await api.put(`/trips/${trip._id}`, patch);
+      setSnack({
+        open: true,
+        severity: 'success',
+        message: `${data.tripId} completed — ${data.truckNumber} is back in the pool.`,
+      });
+      window.setTimeout(() => navigate('/trips'), 1200);
+    } catch (err) {
+      notify('error', err.response?.data?.error || 'Could not complete trip');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const exitEditMode = () => navigate('/trips');
+
   /* ------------------------------------------------------------------ */
   return (
     <Box sx={{ maxWidth: 1500 }}>
@@ -478,23 +589,51 @@ export default function Calculator() {
         sx={{alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between',  mb: 3 }}
       >
         <Box>
-          <Typography variant="h2">Trip Calculator</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Search a city → auto OSRM route → TollGuru tolls → live profit.
-          </Typography>
+          {editMode ? (
+            <>
+              <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+                <Typography variant="h2">Update &amp; Complete Trip</Typography>
+                {trip && (
+                  <SoftChip
+                    status={trip.status}
+                    label={trip.tripId}
+                    sx={{ fontFamily: 'ui-monospace, monospace' }}
+                  />
+                )}
+              </Stack>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Correct the actual figures, then save the trip as completed.
+              </Typography>
+            </>
+          ) : (
+            <>
+              <Typography variant="h2">Trip Calculator</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Search a city → auto Map route → toll plazas → live profit.
+              </Typography>
+            </>
+          )}
         </Box>
-        <Stack direction="row" spacing={1}>
-          <SoftChip
-            color={hasRoute ? 'primary' : 'default'}
-            icon={<Directions sx={{ fontSize: '14px !important' }} />}
-            label={hasRoute ? 'OSRM route mode' : 'Manual distance mode'}
-          />
-          {hasRoute && (
-            <Tooltip title="Clear route and start over">
-              <IconButton size="small" onClick={resetAll} aria-label="Clear route">
-                <ClearIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          {editMode ? (
+            <Button onClick={exitEditMode} color="inherit">
+              Cancel
+            </Button>
+          ) : (
+            <>
+              <SoftChip
+                color={hasRoute ? 'primary' : 'default'}
+                icon={<Directions sx={{ fontSize: '14px !important' }} />}
+                label={hasRoute ? 'Map route mode' : 'Manual distance mode'}
+              />
+              {hasRoute && (
+                <Tooltip title="Clear route and start over">
+                  <IconButton size="small" onClick={resetAll} aria-label="Clear route">
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </>
           )}
         </Stack>
       </Stack>
@@ -540,13 +679,17 @@ export default function Calculator() {
                   </Alert>
                 )}
 
-                <FormControl fullWidth size="small">
-                  <InputLabel id="truck-label">Select truck *</InputLabel>
+                <FormControl fullWidth size="small" disabled={editMode}>
+                  <InputLabel id="truck-label">
+                    {editMode ? `Truck · ${trip?.truckNumber || ''}` : 'Select truck *'}
+                  </InputLabel>
                   <Select
                     labelId="truck-label"
                     value={form.truckId}
-                    label="Select truck *"
-                    onChange={set('truckId')}
+                    label={
+                      editMode ? `Truck · ${trip?.truckNumber || ''}` : 'Select truck *'
+                    }
+                    onChange={onTruckChange}
                     required
                   >
                     <MenuItem value="">
@@ -559,6 +702,18 @@ export default function Calculator() {
                     ))}
                   </Select>
                 </FormControl>
+
+                <TextField
+                  size="small"
+                  fullWidth
+                  type="number"
+                  label="Vehicle mileage (average) *"
+                  placeholder="e.g. 5.8"
+                  value={form.mileage}
+                  onChange={set('mileage')}
+                  helperText="km/L used for the fuel estimate — blank = truck's stored mileage"
+                  slotProps={{ htmlInput: { min: 0, step: 'any' } }}
+                />
 
                 <Divider>
                   <SoftChip
@@ -598,7 +753,7 @@ export default function Calculator() {
                   required={!hasRoute}
                   helperText={
                     hasRoute
-                      ? 'Filled automatically from the OSRM route'
+                      ? 'Filled automatically from the Map route'
                       : 'Leave both places empty to type it manually'
                   }
                   slotProps={{ htmlInput: { min: 0, step: 'any' } }}
@@ -622,10 +777,9 @@ export default function Calculator() {
                     placeholder="3200"
                     value={form.tollCost}
                     onChange={set('tollCost')}
-                    disabled={hasRoute}
                     helperText={
                       hasRoute
-                        ? 'Auto — TollGuru with ₹3/km fallback'
+                        ? 'Type it yourself — blank = ₹3/km estimate · plaza count shown below'
                         : 'Used directly in the profit'
                     }
                     slotProps={{ htmlInput: { min: 0, step: 'any' } }}
@@ -690,7 +844,7 @@ export default function Calculator() {
                   <Box>
                     <Typography variant="h6">Route map</Typography>
                     <Typography variant="caption" color="text.secondary">
-                      OpenStreetMap · OSRM polyline
+                      OpenStreetMap · Map polyline
                     </Typography>
                   </Box>
                   <Stack direction="row" spacing={0.75}>
@@ -746,10 +900,12 @@ export default function Calculator() {
                     <Box>
                       <Directions sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
                       <Typography variant="body2" fontWeight={700}>
-                        Pick a truck and two places
+                        {editMode ? 'Recalculate the route' : 'Pick a truck and two places'}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        Results appear here as soon as the route is priced.
+                        {editMode
+                          ? 'Adjust the figures above and press Recalculate to price this trip again.'
+                          : 'Results appear here as soon as the route is priced.'}
                       </Typography>
                     </Box>
                   </Box>
@@ -764,28 +920,24 @@ export default function Calculator() {
                       />
                       <SoftChip
                         color={result.source === 'osrm' ? 'success' : 'default'}
-                        label={result.source === 'osrm' ? 'OSRM route' : 'Manual distance'}
+                        label={result.source === 'osrm' ? 'Map route' : 'Manual distance'}
                       />
                       {toll && (
                         <SoftChip
-                          color={
-                            toll.source === 'tollguru'
-                              ? 'info'
-                              : toll.source === 'cache'
-                                ? 'success'
-                                : toll.source === 'estimated'
-                                  ? 'warning'
-                                  : 'default'
-                          }
+                          color={toll.source === 'estimated' ? 'warning' : 'success'}
                           icon={<Toll sx={{ fontSize: '14px !important' }} />}
                           label={
-                            toll.source === 'tollguru'
-                              ? `TollGuru · ${toll.currency} ${toll.cost}${toll.hasTolls ? ` (${toll.tollCount} plaza)` : ' (no tolls)'}`
-                              : toll.source === 'cache'
-                                ? `Cached toll ₹${toll.cost}${toll.cacheAgeDays != null ? ` · ${toll.cacheAgeDays}d old` : ''}`
-                                : toll.source === 'estimated'
-                                  ? `Estimated toll ₹${toll.cost} (₹3/km)`
-                                  : `Manual toll ₹${toll.cost}`
+                            toll.source === 'estimated'
+                              ? `Est. toll ₹${toll.cost} (₹3/km)`
+                              : `Manual toll ₹${toll.cost}`
+                          }
+                        />
+                      )}
+                      {toll && toll.tollCount > 0 && (
+                        <SoftChip
+                          tone="#0284c7"
+                          label={
+                            toll.tollCount === 1 ? '1 toll plaza' : `${toll.tollCount} toll plazas`
                           }
                         />
                       )}
@@ -795,7 +947,7 @@ export default function Calculator() {
                     {s && (
                       <Alert severity="info" variant="outlined" sx={{ borderRadius: 2.5 }}>
                         <Typography variant="subtitle2">
-                          {s.distanceKm} km · {s.duration} ({s.durationHours} h) · {s.coordinateCount} route points
+                          {s.distanceKm} km · {s.duration}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           {origin?.label?.slice(0, 60)} → {destination?.label?.slice(0, 60)}
@@ -818,7 +970,7 @@ export default function Calculator() {
                       />
                       <Metric
                         icon={Schedule}
-                        label={s ? 'OSRM ETA' : 'Travel time'}
+                        label={s ? 'Map ETA' : 'Travel time'}
                         value={s ? s.duration : result.travelTime}
                         tone="primary.main"
                       />
@@ -841,22 +993,6 @@ export default function Calculator() {
                         }
                       />
                     </Box>
-
-                    {result.isEstimatedToll && showEstimated && (
-                      <Alert
-                        severity="warning"
-                        variant="outlined"
-                        onClose={() => setShowEstimated(false)}
-                        sx={{ borderRadius: 2.5 }}
-                      >
-                        Live API quota exhausted. Showing an estimated toll based on distance (₹3/km).
-                        {toll?.reason && toll.reason !== 'SKIPPED' && (
-                          <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }} color="text.secondary">
-                            Reason: {toll.reason} · estimate = {result.distance} km × ₹3
-                          </Typography>
-                        )}
-                      </Alert>
-                    )}
 
                     <Box
                       sx={{
@@ -906,36 +1042,51 @@ export default function Calculator() {
                         </Stack>
                       </Box>
                     )}
-
-                    <Divider />
-
-                    <Stack
-                      direction={{ xs: 'column', sm: 'row' }}
-                      spacing={1.5}
-                      
-                      
-                     sx={{ alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}>
-                      <Typography variant="caption" color="text.secondary">
-                        {hasRoute
-                          ? 'Saving stores this quote with its exact OSRM route.'
-                          : 'Manual distance — no route geometry will be stored.'}
-                      </Typography>
-                      <Button
-                        variant="contained"
-                        color="success"
-                        size="large"
-                        startIcon={
-                          saving ? <CircularProgress size={18} color="inherit" /> : <PlayArrow />
-                        }
-                        disabled={!canStartTrip || saving}
-                        onClick={startTrip}
-                        sx={{ py: 1.25, whiteSpace: 'nowrap' }}
-                      >
-                        {saving ? 'Starting…' : 'Start Trip'}
-                      </Button>
-                    </Stack>
                   </Stack>
                 )}
+
+                <Divider sx={{ mt: 2.5 }} />
+
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={1.5}
+                  sx={{
+                    alignItems: { xs: 'stretch', sm: 'center' },
+                    justifyContent: 'space-between',
+                    mt: 2.5,
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary">
+                    {editMode
+                      ? 'Saving overwrites the trip figures and marks it completed.'
+                      : hasRoute
+                        ? 'Saving stores this quote with its exact Map route.'
+                        : 'Manual distance — no route geometry will be stored.'}
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    color="success"
+                    size="large"
+                    startIcon={
+                      saving ? (
+                        <CircularProgress size={18} color="inherit" />
+                      ) : editMode ? (
+                        <DoneAll />
+                      ) : (
+                        <PlayArrow />
+                      )
+                    }
+                    disabled={editMode ? !canComplete || saving : !canStartTrip || saving}
+                    onClick={editMode ? completeTrip : startTrip}
+                    sx={{ py: 1.25, whiteSpace: 'nowrap' }}
+                  >
+                    {saving
+                      ? 'Saving…'
+                      : editMode
+                        ? 'Update & Mark as Complete'
+                        : 'Start Trip'}
+                  </Button>
+                </Stack>
               </CardContent>
             </Card>
           </motion.div>

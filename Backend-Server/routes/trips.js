@@ -83,8 +83,23 @@ const FREED_TRIP_STATUSES = ['Completed', 'Cancelled'];
 const UPDATABLE_FIELDS = [
   'status', 'revenue', 'tollCost', 'driverExpense', 'otherExpenses', 'notes',
   'cargo', 'cargoWeight', 'customer', 'driver', 'driverName',
-  'expectedDelivery', 'completedDate', 'startDate', 'distance'
+  'expectedDelivery', 'completedDate', 'startDate', 'distance', 'mileageUsed',
+  'cancelReason'
 ];
+
+/** Cancellation reasons are stored on the trip and surfaced in reports. */
+function cleanCancelReason(value) {
+  return String(value == null ? '' : value).replace(/\s+/g, ' ').trim().slice(0, 300);
+}
+
+/**
+ * Client mileage (km/L) wins over the truck's stored figure, but only when
+ * it is a positive finite number — anything else falls back to the truck.
+ */
+function resolveMileage(raw, truckMileage) {
+  const m = Number(raw);
+  return Number.isFinite(m) && m > 0 ? m : truckMileage;
+}
 
 /** Keeps stored routes small enough for Mongo's 16 MB doc limit. */function simplifyGeometry(geometry, maxPoints = 1500) {
   if (!geometry || geometry.type !== 'LineString' || !Array.isArray(geometry.coordinates)) {
@@ -116,6 +131,7 @@ router.post('/calculate', async (req, res) => {
     const {
       truckId,
       distance,
+      mileage,
       revenue,
       tollCost,
       driverExpense,
@@ -163,9 +179,10 @@ router.post('/calculate', async (req, res) => {
       }
       distanceKm = route.distanceKm;
 
-      // b) Toll -> Mongo cache first, then TollGuru, then distance estimate.
-      //    resolveToll() never throws, so a quota-exhausted day degrades to an
-      //    estimated toll instead of failing the whole calculation.
+      // b) Toll -> cost is manual (or a ₹3/km estimate); the plaza count comes
+      //    from the Mongo cache, then TollGuru, then a distance estimate.
+      //    resolveToll() never throws, so a quota-exhausted day still returns
+      //    a cost + count instead of failing the whole calculation.
       toll = await resolveToll({
         from,
         to,
@@ -177,10 +194,11 @@ router.post('/calculate', async (req, res) => {
       });
     }
 
-    // c) fuel + profit from the real distance and the real toll
+    // c) fuel + profit from the real distance, the manual toll and the mileage
+    const mileageUsed = resolveMileage(mileage, truck.currentMileage);
     const calc = fullTripCalc({
       distance: distanceKm,
-      mileage: truck.currentMileage,
+      mileage: mileageUsed,
       fuelPrice,
       avgSpeed: truck.avgSpeed || settings.defaultAvgSpeed,
       revenue: pickNumber(revenue, 0),
@@ -196,7 +214,7 @@ router.post('/calculate', async (req, res) => {
     res.json({
       truck: {
         truckNumber: truck.truckNumber,
-        mileage: truck.currentMileage,
+        mileage: mileageUsed,
         fuelType: truck.fuelType,
         avgSpeed: truck.avgSpeed,
         tankCapacity: truck.tankCapacity
@@ -266,9 +284,10 @@ router.post('/', async (req, res) => {
 
     // Always recompute server-side — the client's profit number is a preview,
     // not the source of truth.
+    const mileageUsed = resolveMileage(b.mileage ?? b.mileageUsed, truck.currentMileage);
     const calc = fullTripCalc({
       distance: check.value,
-      mileage: truck.currentMileage,
+      mileage: mileageUsed,
       fuelPrice,
       avgSpeed: truck.avgSpeed || settings.defaultAvgSpeed,
       revenue: pickNumber(b.revenue, 0),
@@ -289,6 +308,12 @@ router.post('/', async (req, res) => {
     const route = b.route || {};
     const geometry = simplifyGeometry(route.geometry);
     const status = TRIP_STATUSES.includes(b.status) ? b.status : 'Started';
+    if (status === 'Cancelled' && cleanCancelReason(b.cancelReason).length < 3) {
+      return res.status(400).json({
+        error: 'A cancellation reason is required (at least 3 characters)',
+        code: 'VALIDATION'
+      });
+    }
 
     // No explicit driver? Fall back to whoever is currently assigned to the truck.
     let driverId = b.driver || truck.currentDriver || undefined;
@@ -320,7 +345,7 @@ router.post('/', async (req, res) => {
       cargo: b.cargo || '',
       cargoWeight: pickNumber(b.cargoWeight, 0),
       customer: b.customer || '',
-      mileageUsed: truck.currentMileage,
+      mileageUsed,
       fuelType: truck.fuelType,
       avgSpeed: truck.avgSpeed,
       fuelRequired: calc.fuelRequired,
@@ -335,7 +360,10 @@ router.post('/', async (req, res) => {
       profitPercent: calc.profitPercent,
       travelTimeHours: calc.travelTimeHours,
       status,
-      notes: b.notes || ''
+      notes: b.notes || '',
+      ...(status === 'Cancelled'
+        ? { cancelReason: cleanCancelReason(b.cancelReason), cancelledAt: new Date() }
+        : {})
     };
 
     // Retries only on a duplicate-key race, which random ids make vanishing
@@ -377,6 +405,7 @@ router.put('/:id', async (req, res) => {
     if (!trip) return res.status(404).json({ error: 'Trip not found' });
 
     const b = req.body || {};
+    if (b.mileage !== undefined && b.mileageUsed === undefined) b.mileageUsed = b.mileage;
     const patch = {};
     for (const key of UPDATABLE_FIELDS) {
       if (b[key] !== undefined) patch[key] = b[key];
@@ -384,21 +413,42 @@ router.put('/:id', async (req, res) => {
     if (patch.status && !TRIP_STATUSES.includes(patch.status)) {
       return res.status(400).json({ error: `Invalid status: ${patch.status}`, code: 'VALIDATION' });
     }
+    // Cancelling needs a recorded reason — it feeds the loss view on Trips.
+    if (patch.status === 'Cancelled' && trip.status !== 'Cancelled') {
+      const reason = cleanCancelReason(patch.cancelReason);
+      if (reason.length < 3) {
+        return res.status(400).json({
+          error: 'A cancellation reason is required (at least 3 characters)',
+          code: 'VALIDATION'
+        });
+      }
+      patch.cancelReason = reason;
+      patch.cancelledAt = new Date();
+    } else if (patch.cancelReason !== undefined) {
+      patch.cancelReason = cleanCancelReason(patch.cancelReason);
+    }
     if (patch.status === 'Completed' && !trip.completedDate) {
       patch.completedDate = new Date();
     }
+    if (patch.mileageUsed !== undefined) {
+      const m = Number(patch.mileageUsed);
+      if (!Number.isFinite(m) || m <= 0) {
+        return res.status(400).json({ error: 'Mileage must be greater than 0', code: 'VALIDATION' });
+      }
+      patch.mileageUsed = m;
+    }
 
-    // Money edits must keep profit consistent with the stored inputs.
-    const moneyTouched = ['revenue', 'tollCost', 'driverExpense', 'otherExpenses', 'distance'].some(
-      (k) => patch[k] !== undefined
-    );
+    // Money or mileage edits must keep profit consistent with the inputs.
+    const moneyTouched = [
+      'revenue', 'tollCost', 'driverExpense', 'otherExpenses', 'distance', 'mileageUsed'
+    ].some((k) => patch[k] !== undefined);
     if (moneyTouched) {
       const distance = validateDistance(patch.distance ?? trip.distance);
       if (!distance.ok) return res.status(400).json({ error: distance.error, code: 'VALIDATION' });
       patch.distance = distance.value;
       const calc = fullTripCalc({
         distance: patch.distance,
-        mileage: trip.mileageUsed,
+        mileage: patch.mileageUsed ?? trip.mileageUsed,
         fuelPrice: trip.fuelPrice,
         avgSpeed: trip.avgSpeed,
         revenue: pickNumber(patch.revenue ?? trip.revenue, 0),
@@ -424,10 +474,12 @@ router.put('/:id', async (req, res) => {
     if (patch.status && ACTIVE_TRIP_STATUSES.includes(patch.status)) {
       await Truck.findByIdAndUpdate(trip.truck, { status: 'On Trip', currentTrip: trip._id });
     } else if (patch.status && FREED_TRIP_STATUSES.includes(patch.status)) {
-      await Truck.findByIdAndUpdate(trip.truck, {
-        status: 'Available',
-        $unset: { currentTrip: '' }
-      });
+      // Only free the truck this trip actually owns — cancelling a Planned
+      // trip must not knock a truck out of Maintenance (or another trip).
+      await Truck.findOneAndUpdate(
+        { _id: trip.truck, currentTrip: trip._id },
+        { status: 'Available', $unset: { currentTrip: '' } }
+      );
     }
 
     // Notify on meaningful state transitions (deduped per trip + state).

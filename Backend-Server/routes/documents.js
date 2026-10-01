@@ -8,36 +8,58 @@ const router = express.Router();
 router.use(protect);
 
 const DOC_TYPES = [
-  'RC', 'Insurance', 'PUC', 'Fitness Certificate',
-  'Permit', 'National Permit', 'Tax', 'Roadworthiness', 'Other',
+  'RC', 'Insurance', 'PUC', 'Fitness Certificate', 'Permit', 'National Permit',
+  'Tax', 'Roadworthiness', 'NOC', 'Other',
 ];
-const EDITABLE_FIELDS = ['truckNumber', 'docType', 'docNumber', 'issueDate', 'expiryDate', 'remarks'];
+// Documents that always carry an expiry. Everything else (RC, NOC, custom
+// 'Other' papers) may be lifetime, so expiryDate is optional for them.
+const EXPIRY_REQUIRED_TYPES = [
+  'Insurance', 'PUC', 'Fitness Certificate', 'Permit', 'National Permit',
+  'Tax', 'Roadworthiness',
+];
+const EDITABLE_FIELDS = [
+  'truckNumber', 'docType', 'customLabel', 'issuingAuthority', 'docNumber',
+  'issueDate', 'expiryDate', 'remarks', 'notes',
+];
 
 /** Whitelists text fields from a multipart body (values arrive as strings). */
 function pickEditableFields(body = {}) {
   const out = {};
   for (const key of EDITABLE_FIELDS) {
-    if (body[key] === undefined) continue;
+    // `notes` is a UI-friendly alias for the existing `remarks` field.
+    const sourceKey = key === 'notes' ? 'remarks' : key;
+    const value = key === 'notes' ? (body.notes !== undefined ? body.notes : body.remarks) : body[key];
+    if (value === undefined) continue;
     if (['issueDate', 'expiryDate'].includes(key)) {
-      if (body[key] === '' || body[key] === null) { out[key] = undefined; continue; }
-      const parsed = new Date(body[key]);
+      // An empty date means "clear it" (a lifetime document), which is
+      // different from "not sent" — Mongoose ignores undefined on save, so an
+      // explicit null is required for a previously entered expiry to be unset.
+      if (value === '' || value === null) { out[key] = null; continue; }
+      const parsed = new Date(value);
       if (Number.isNaN(parsed.getTime())) {
         throw new Error(`Invalid date for ${key}`);
       }
       out[key] = parsed;
       continue;
     }
-    out[key] = body[key];
+    out[sourceKey] = value;
   }
   return out;
 }
 
-function validate({ docType, expiryDate }) {
+function validate({ docType, customLabel, expiryDate }) {
   if (!docType || !DOC_TYPES.includes(docType)) {
     throw new Error(`Invalid document type. Allowed: ${DOC_TYPES.join(', ')}`);
   }
+  // "Other" needs a label, otherwise every custom document would show as
+  // "Other" and could not be told apart.
+  if (docType === 'Other' && !String(customLabel || '').trim()) {
+    throw new Error('Please enter a document name for the "Other" type');
+  }
   if (!expiryDate || Number.isNaN(new Date(expiryDate).getTime())) {
-    throw new Error('Expiry date is required');
+    if (EXPIRY_REQUIRED_TYPES.includes(docType)) {
+      throw new Error('Expiry date is required for this document type');
+    }
   }
 }
 
@@ -86,13 +108,63 @@ function maybeNotifyDocumentPolicy(doc) {
   return Promise.resolve();
 }
 
+/** Shared expiry evaluation so the filter chips and the summary never disagree. */
 router.get('/', async (req, res) => {
   try {
-    const docs = await Document.find().populate('truck', 'truckNumber').sort({ expiryDate: 1 });
+    const filter = {};
+    // Per-vehicle listing for the Vehicle Documents section.
+    if (req.query.truck) {
+      if (!/^[a-f\d]{24}$/i.test(String(req.query.truck))) {
+        return res.status(400).json({ error: 'Invalid truck id' });
+      }
+      filter.truck = req.query.truck;
+    }
+    const docs = await Document.find(filter).populate('truck', 'truckNumber').sort({ expiryDate: 1 });
     res.json(docs);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+/**
+ * Document counts for a vehicle (optional `?truck=`), used for the
+ * "Documents (N)" badge. Statuses come from the same rules as the `status`
+ * virtual, so the badge and the list can never disagree.
+ */
+router.get('/summary', async (req, res) => {
+  try {
+    const filter = {};
+    if (req.query.truck) {
+      if (!/^[a-f\d]{24}$/i.test(String(req.query.truck))) {
+        return res.status(400).json({ error: 'Invalid truck id' });
+      }
+      filter.truck = req.query.truck;
+    }
+    // Hydrated (not .lean()) on purpose: the `status` virtual is the single
+    // source of truth for expiry, so the summary can never drift from the list.
+    const docs = await Document.find(filter).select('expiryDate uploadedFile');
+    const summary = { total: docs.length, valid: 0, expiringSoon: 0, expired: 0, noExpiry: 0, withFile: 0 };
+    for (const doc of docs) {
+      const status = doc.status;
+      if (status === 'Valid') summary.valid += 1;
+      else if (status === 'Expiring Soon') summary.expiringSoon += 1;
+      else if (status === 'Expired') summary.expired += 1;
+      else summary.noExpiry += 1;
+      if (doc.uploadedFile) summary.withFile += 1;
+    }
+    res.json(summary);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Single source of truth for the document type list (used by the UI). */
+router.get('/types', (req, res) => {
+  res.json({
+    types: DOC_TYPES,
+    expiryRequired: EXPIRY_REQUIRED_TYPES,
+    custom: 'Other',
+  });
 });
 
 /** Reports which storage backend is active — handy for verifying .env. */
@@ -159,10 +231,15 @@ router.put('/:id', uploadSingle, async (req, res) => {
     }
 
     // Reject an invalid docType/expiry pair *before* replacing the file.
+    // The effective values are used (incoming value, else the stored one) so a
+    // partial update is validated as it will actually end up stored — e.g.
+    // editing an 'Other' document without re-sending its custom label.
     const nextType = fields.docType ?? doc.docType;
-    const nextExpiry = fields.expiryDate ?? doc.expiryDate;
+    const nextLabel = fields.customLabel ?? doc.customLabel;
+    // `in` (not `??`) so an explicitly cleared date stays cleared.
+    const nextExpiry = 'expiryDate' in fields ? fields.expiryDate : doc.expiryDate;
     try {
-      validate({ docType: nextType, expiryDate: nextExpiry });
+      validate({ docType: nextType, customLabel: nextLabel, expiryDate: nextExpiry });
     } catch (err) {
       if (stored) await deleteStoredFile(stored);
       return res.status(400).json({ error: err.message });
@@ -228,6 +305,93 @@ router.delete('/:id', async (req, res) => {
     res.json({ message: 'Deleted' });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+/* ------------------------------------------- user-confirmed RC -> documents */
+/**
+ * POST /api/documents/from-rc
+ * Body: { truck, items: [{ docType, docNumber?, issueDate?, expiryDate?, issuingAuthority? }] }
+ *
+ * Creates Document records from RC lookup validity dates — but ONLY for the
+ * items the user explicitly selected in the UI. Nothing here runs
+ * automatically as part of a vehicle save.
+ *
+ * Rules:
+ *  - A validity date from the RC API is not proof of an uploaded file, so the
+ *    records are created with `source: 'rc-suggested'` and no file.
+ *  - Never fabricates a document number: if the API gave none, it stays empty.
+ *  - Skips an equivalent existing document (same truck + type + document
+ *    number, or same truck + type + expiry date when there is no number).
+ *  - Permit / National Permit are intentionally unsupported: the cStudio RC
+ *    response contains no permit data, so nothing is invented for them.
+ */
+const RC_ALLOWED_TYPES = new Set(['Insurance', 'Fitness Certificate', 'PUC', 'Tax', 'RC']);
+
+router.post('/from-rc', async (req, res) => {
+  try {
+    const Truck = require('../models/Truck');
+    const { truck, items } = req.body || {};
+
+    if (!truck || !/^[a-f\d]{24}$/i.test(String(truck))) {
+      return res.status(400).json({ error: 'A valid truck is required' });
+    }
+    const vehicle = await Truck.findById(truck);
+    if (!vehicle) return res.status(400).json({ error: 'Selected truck does not exist' });
+    if (!Array.isArray(items) || !items.length) {
+      return res.status(400).json({ error: 'No documents were selected' });
+    }
+
+    const created = [];
+    const skipped = [];
+
+    for (const item of items) {
+      const docType = String(item?.docType || '').trim();
+      if (!RC_ALLOWED_TYPES.has(docType)) {
+        skipped.push({ docType: docType || 'unknown', reason: 'Not available from RC data' });
+        continue;
+      }
+      const expiryDate = item.expiryDate ? new Date(item.expiryDate) : null;
+      if (expiryDate && Number.isNaN(expiryDate.getTime())) {
+        skipped.push({ docType, reason: 'Invalid date' });
+        continue;
+      }
+      const docNumber = String(item.docNumber || '').trim();
+      const issueDate = item.issueDate ? new Date(item.issueDate) : null;
+      if (issueDate && Number.isNaN(issueDate.getTime())) return res.status(400).json({ error: 'Invalid issue date' });
+
+      // Duplicate guard: never create a second copy of the same document.
+      const existingQuery = { truck: vehicle._id, docType };
+      if (docNumber) existingQuery.docNumber = docNumber;
+      else if (expiryDate) existingQuery.expiryDate = expiryDate;
+      else {
+        skipped.push({ docType, reason: 'Nothing to create' });
+        continue;
+      }
+      const existing = await Document.findOne(existingQuery);
+      if (existing) {
+        skipped.push({ docType, reason: 'Already added for this vehicle' });
+        continue;
+      }
+
+      const doc = await Document.create({
+        truck: vehicle._id,
+        truckNumber: vehicle.truckNumber,
+        docType,
+        customLabel: String(item.customLabel || '').trim(),
+        issuingAuthority: String(item.issuingAuthority || '').trim(),
+        docNumber,
+        issueDate: issueDate || undefined,
+        expiryDate: expiryDate || undefined,
+        source: 'rc-suggested',
+        remarks: 'Created from RC verification — upload the actual document file when available.',
+      });
+      created.push(doc);
+    }
+
+    return res.status(created.length ? 201 : 200).json({ created, skipped });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
   }
 });
 

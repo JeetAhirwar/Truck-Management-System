@@ -55,7 +55,10 @@ const tripSchema = new mongoose.Schema({
     enum: ['Planned', 'Assigned', 'Started', 'In Transit', 'Reached', 'Completed', 'Cancelled'],
     default: 'Planned'
   },
-  notes: { type: String, default: '' }
+  notes: { type: String, default: '' },
+  // Cancellation is a deliberate act, so it always carries why + when.
+  cancelReason: { type: String, default: '' },
+  cancelledAt: { type: Date }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Trip', tripSchema);

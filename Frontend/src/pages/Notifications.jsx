@@ -6,13 +6,15 @@ import {
   Card,
   CardContent,
   Divider,
+  IconButton,
   Stack,
   Tab,
   Tabs,
+  Tooltip,
   Typography,
   alpha,
 } from '@mui/material';
-import { DoneAll, NotificationsNone } from '@mui/icons-material';
+import { Close, DeleteSweep, DoneAll, NotificationsNone } from '@mui/icons-material';
 import { PageHeader } from '../components/ui';
 import { useNotifications, typeMeta, timeAgo } from '../contexts/NotificationsContext';
 
@@ -29,7 +31,8 @@ const severityTone = (severity) =>
   severity === 'critical' ? TONE.red : severity === 'warning' ? TONE.amber : TONE.blue;
 
 export default function Notifications() {
-  const { items, unread, connected, refresh, markRead, markAllRead } = useNotifications();
+  const { items, unread, connected, refresh, markRead, markAllRead, removeNotification, clearAll } =
+    useNotifications();
   const navigate = useNavigate();
   const [filter, setFilter] = useState('all');
 
@@ -41,6 +44,16 @@ export default function Notifications() {
   const handleOpen = (n) => {
     if (!n.read) markRead(n._id);
     if (n.link) navigate(n.link);
+  };
+
+  const handleDelete = (e, n) => {
+    e.stopPropagation();
+    removeNotification(n._id);
+  };
+
+  const handleClearAll = () => {
+    if (!window.confirm(`Clear all ${items.length} notifications? This can't be undone.`)) return;
+    clearAll();
   };
 
   return (
@@ -62,6 +75,17 @@ export default function Notifications() {
             {unread > 0 && (
               <Button variant="contained" size="small" startIcon={<DoneAll fontSize="small" />} onClick={markAllRead}>
                 Mark all read
+              </Button>
+            )}
+            {items.length > 0 && (
+              <Button
+                variant="outlined"
+                color="error"
+                size="small"
+                startIcon={<DeleteSweep fontSize="small" />}
+                onClick={handleClearAll}
+              >
+                Clear all
               </Button>
             )}
           </Stack>
@@ -175,6 +199,21 @@ export default function Notifications() {
                       {!n.read && (
                         <Box sx={{ width: 9, height: 9, borderRadius: '50%', bgcolor: tone, mt: 1.5, flexShrink: 0 }} />
                       )}
+                      <Tooltip title="Delete">
+                        <IconButton
+                          size="small"
+                          aria-label={`Delete notification: ${n.title}`}
+                          onClick={(e) => handleDelete(e, n)}
+                          sx={{
+                            mt: 0.75,
+                            flexShrink: 0,
+                            color: 'text.disabled',
+                            '&:hover': { color: 'error.main', bgcolor: (t) => alpha(t.palette.error.main, 0.1) },
+                          }}
+                        >
+                          <Close sx={{ fontSize: 18 }} />
+                        </IconButton>
+                      </Tooltip>
                     </Box>
                     {i < visible.length - 1 && <Divider sx={{ mx: { xs: 0.5, sm: 1 } }} />}
                   </Box>

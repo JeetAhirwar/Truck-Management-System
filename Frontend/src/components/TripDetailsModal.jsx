@@ -27,11 +27,11 @@ import {
   TrendingDown,
   TrendingUp,
   DoneAll,
-  PlayArrow,
   LocalShipping,
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
 import RouteMap, { geoJsonToLatLngs } from './RouteMap';
+import CompleteTripDialog from './CompleteTripDialog';
 import { SoftChip } from './ui';
 
 const rupees = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
@@ -183,294 +183,336 @@ function DriverSection({ trip }) {
   );
 }
 
-export default function TripDetailsModal({ open, trip, loading = false, onClose, onUpdate }) {
-  const [updating, setUpdating] = useState('');
+export default function TripDetailsModal({
+  open,
+  trip,
+  loading = false,
+  onClose,
+  onUpdate,
+  onEditTrip,
+  onRequestCancel,
+}) {
+  const [completeOpen, setCompleteOpen] = useState(false);
+  const [completeBusy, setCompleteBusy] = useState(false);
+  const [completeAction, setCompleteAction] = useState('');
 
   const routeCoords = useMemo(() => geoJsonToLatLngs(trip?.routeGeometry), [trip]);
 
   if (!trip) return null;
 
   const status = statusMeta(trip.status);
-  const profitable = (trip.profit || 0) >= 0;
+  const cancelled = trip.status === 'Cancelled';
+  // A cancelled trip earned nothing, so it can only ever be a loss.
+  const profitable = !cancelled && (trip.profit || 0) >= 0;
   const ProfitIcon = profitable ? TrendingUp : TrendingDown;
   const finished = ['Completed', 'Cancelled'].includes(trip.status);
+  const cancelledLoss = cancelled ? Number(trip.totalExpense || 0) : 0;
 
-  const changeStatus = async (next) => {
-    setUpdating(next);
+  /* ---- completion gate: update first, or close as-is ---- */
+  const completeNow = async () => {
+    setCompleteBusy(true);
+    setCompleteAction('complete');
     try {
-      await onUpdate(trip._id, { status: next });
+      await onUpdate(trip._id, { status: 'Completed' });
+      setCompleteOpen(false);
     } finally {
-      setUpdating('');
+      setCompleteBusy(false);
+      setCompleteAction('');
     }
   };
 
+  const editThenComplete = () => {
+    setCompleteOpen(false);
+    onEditTrip?.(trip._id);
+  };
+
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="md"
-      fullWidth
-      PaperProps={{ sx: { borderRadius: 4, maxHeight: '92vh' } }}
-    >
-      <DialogTitle sx={{ pb: 1.5 }}>
-        <Stack direction="row"   spacing={2} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <Box sx={{ minWidth: 0 }}>
-            <Stack direction="row" spacing={1}  sx={{alignItems: 'center',  flexWrap: 'wrap', gap: 1 }}>
-              <Typography variant="h5" sx={{ fontFamily: 'ui-monospace, monospace' }}>
-                {trip.tripId}
-              </Typography>
-              <SoftChip color={status.color} label={status.label} />
-              {trip.tollIsEstimated && (
-                <SoftChip tone="#d97706" label="Estimated toll" />
-              )}
-            </Stack>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }} noWrap>
-              {trip.truckNumber} · {trip.from} → {trip.to}
-            </Typography>
-          </Box>
-          <IconButton onClick={onClose} aria-label="Close trip details">
-            <Close />
-          </IconButton>
-        </Stack>
-      </DialogTitle>
-
-      <DialogContent dividers>
-        {loading ? (
-          <Stack  spacing={2} sx={{alignItems: 'center',  py: 8 }}>
-            <CircularProgress />
-            <Typography variant="body2" color="text.secondary">
-              Loading trip…
-            </Typography>
-          </Stack>
-        ) : (
-          <Box
-            sx={{
-              display: 'grid',
-              gap: 2.5,
-              gridTemplateColumns: { xs: '1fr', md: 'minmax(0,1fr) minmax(0,1.15fr)' }
-            }}
-          >
-            {/* ---------------- LEFT: financials ---------------- */}
-            <Stack spacing={2}>
-              <Box
-                sx={{
-                  display: 'grid',
-                  gap: 1.5,
-                  gridTemplateColumns: 'repeat(2, minmax(0,1fr))'
-                }}
-              >
-                <StatCard icon={LocalShipping} label="Distance" value={`${trip.distance} km`} tone="primary.main" />
-                <StatCard
-                  icon={Schedule}
-                  label={trip.routeDuration ? 'OSRM duration' : 'Travel time'}
-                  value={trip.routeDuration || `${trip.travelTimeHours || 0} h`}
-                  tone="primary.main"
-                />
-                <StatCard icon={LocalGasStation} label="Fuel required" value={`${trip.fuelRequired || 0} L`} tone="warning.main" />
-                <StatCard
-                  icon={CurrencyRupee}
-                  label="Fuel cost"
-                  value={rupees(trip.fuelCost)}
-                  tone="secondary.main"
-                />
-              </Box>
-
-              <Box
-                sx={{
-                  border: 1,
-                  borderColor: 'divider',
-                  borderRadius: 3,
-                  p: 2,
-                  bgcolor: 'background.nested'
-                }}
-              >
-                <Typography variant="overline" color="text.secondary">
-                  Financial breakdown
+    <>
+      <Dialog
+        open={open}
+        onClose={onClose}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 4, maxHeight: '92vh' } }}
+      >
+        <DialogTitle sx={{ pb: 1.5 }}>
+          <Stack direction="row"   spacing={2} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <Box sx={{ minWidth: 0 }}>
+              <Stack direction="row" spacing={1}  sx={{alignItems: 'center',  flexWrap: 'wrap', gap: 1 }}>
+                <Typography variant="h5" sx={{ fontFamily: 'ui-monospace, monospace' }}>
+                  {trip.tripId}
                 </Typography>
-                <Box sx={{ mt: 0.5 }}>
-                  <MoneyRow label="Revenue" value={rupees(trip.revenue)} />
-                  <MoneyRow label="− Fuel" value={`− ${rupees(trip.fuelCost)}`} />
-                  <MoneyRow label="− Toll" value={`− ${rupees(trip.tollCost)}`} />
-                  <MoneyRow label="− Driver" value={`− ${rupees(trip.driverExpense)}`} />
-                  <MoneyRow label="− Other" value={`− ${rupees(trip.otherExpenses)}`} />
-                  <Divider sx={{ my: 1 }} />
-                  <MoneyRow
-                    label="Total expense"
-                    value={rupees(trip.totalExpense)}
-                    bold
-                  />
-                </Box>
-              </Box>
-
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 3,
-                  bgcolor: alpha(profitable ? '#16a34a' : '#dc2626', 0.1),
-                  border: 1,
-                  borderColor: alpha(profitable ? '#16a34a' : '#dc2626', 0.3)
-                }}
-              >
-                <Stack direction="row" spacing={1.5}  sx={{ alignItems: 'center' }}>
-                  <ProfitIcon color={profitable ? 'success' : 'error'} />
-                  <Box>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-                      Total profit
-                    </Typography>
-                    <Stack direction="row" spacing={1}  sx={{ alignItems: 'baseline' }}>
-                      <Typography variant="h5" sx={{ color: profitable ? 'success.main' : 'error.main' }}>
-                        {rupees(trip.profit)}
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{ color: profitable ? 'success.main' : 'error.main', fontWeight: 700 }}
-                      >
-                        {trip.profitPercent}%
-                      </Typography>
-                    </Stack>
-                  </Box>
-                </Stack>
-              </Box>
-
-              <DriverSection trip={trip} />
-
-              <Stack spacing={0.75}>
-                <Stack direction="row" spacing={1}  sx={{ alignItems: 'center' }}>
-                  <LocalShipping sx={{ fontSize: 16, color: 'text.secondary' }} />
-                  <Typography variant="caption" color="text.secondary">
-                    Mileage used {trip.mileageUsed} km/L · Fuel {trip.fuelType} @ {rupees(trip.fuelPrice)}/L
-                  </Typography>
-                </Stack>
-                {trip.cargo && (
-                  <Stack direction="row" spacing={1}  sx={{ alignItems: 'center' }}>
-                    <Toll sx={{ fontSize: 16, color: 'text.secondary' }} />
-                    <Typography variant="caption" color="text.secondary">
-                      Cargo {trip.cargo}
-                      {trip.cargoWeight ? ` · ${trip.cargoWeight} kg` : ''}
-                      {trip.customer ? ` · ${trip.customer}` : ''}
-                    </Typography>
-                  </Stack>
+                <SoftChip color={status.color} label={status.label} />
+                {trip.tollIsEstimated && (
+                  <SoftChip tone="#d97706" label="Estimated toll" />
                 )}
               </Stack>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }} noWrap>
+                {trip.truckNumber} · {trip.from} → {trip.to}
+              </Typography>
+            </Box>
+            <IconButton onClick={onClose} aria-label="Close trip details">
+              <Close />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
 
-              {trip.notes && (
-                <Alert severity="info" variant="outlined" sx={{ borderRadius: 2.5 }}>
-                  {trip.notes}
-                </Alert>
-              )}
+        <DialogContent dividers>
+          {loading ? (
+            <Stack  spacing={2} sx={{alignItems: 'center',  py: 8 }}>
+              <CircularProgress />
+              <Typography variant="body2" color="text.secondary">
+                Loading trip…
+              </Typography>
             </Stack>
-
-            {/* ---------------- RIGHT: map ---------------- */}
-            <Box sx={{ display: 'grid', gap: 1.5, alignContent: 'start' }}>
-              {trip.routeGeometry || trip.origin?.lat != null ? (
-                <RouteMap
-                  origin={trip.origin?.lat != null ? { lat: trip.origin.lat, lng: trip.origin.lng, label: trip.origin.label } : null}
-                  destination={
-                    trip.destination?.lat != null
-                      ? { lat: trip.destination.lat, lng: trip.destination.lng, label: trip.destination.label }
-                      : null
-                  }
-                  routeCoords={routeCoords}
-                  height={340}
-                />
-              ) : (
+          ) : (
+            <Box
+              sx={{
+                display: 'grid',
+                gap: 2.5,
+                gridTemplateColumns: { xs: '1fr', md: 'minmax(0,1fr) minmax(0,1.15fr)' }
+              }}
+            >
+              {/* ---------------- LEFT: financials ---------------- */}
+              <Stack spacing={2}>
                 <Box
                   sx={{
-                    height: 340,
                     display: 'grid',
-                    placeItems: 'center',
-                    textAlign: 'center',
-                    border: '1px dashed',
-                    borderColor: 'divider',
-                    borderRadius: 3,
-                    bgcolor: 'background.nested',
-                    px: 3
+                    gap: 1.5,
+                    gridTemplateColumns: 'repeat(2, minmax(0,1fr))'
                   }}
                 >
-                  <Box>
-                    <LocalShipping sx={{ fontSize: 34, color: 'text.disabled', mb: 1 }} />
-                    <Typography variant="body2" fontWeight={700}>
-                      No route geometry
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      This trip was created from a manual distance, so no polyline was stored.
-                    </Typography>
+                  <StatCard icon={LocalShipping} label="Distance" value={`${trip.distance} km`} tone="primary.main" />
+                  <StatCard
+                    icon={Schedule}
+                    label={trip.routeDuration ? 'Map duration' : 'Travel time'}
+                    value={trip.routeDuration || `${trip.travelTimeHours || 0} h`}
+                    tone="primary.main"
+                  />
+                  <StatCard icon={LocalGasStation} label="Fuel required" value={`${trip.fuelRequired || 0} L`} tone="warning.main" />
+                  <StatCard
+                    icon={CurrencyRupee}
+                    label="Fuel cost"
+                    value={rupees(trip.fuelCost)}
+                    tone="secondary.main"
+                  />
+                </Box>
+
+                <Box
+                  sx={{
+                    border: 1,
+                    borderColor: 'divider',
+                    borderRadius: 3,
+                    p: 2,
+                    bgcolor: 'background.nested'
+                  }}
+                >
+                  <Typography variant="overline" color="text.secondary">
+                    Financial breakdown
+                  </Typography>
+                  <Box sx={{ mt: 0.5 }}>
+                    <MoneyRow
+                      label={cancelled ? 'Expected revenue' : 'Revenue'}
+                      value={rupees(trip.revenue)}
+                      tone={cancelled ? 'text.disabled' : undefined}
+                    />
+                    {cancelled && (
+                      <MoneyRow label="Revenue earned" value={rupees(0)} tone="error.main" />
+                    )}
+                    <MoneyRow label="− Fuel" value={`− ${rupees(trip.fuelCost)}`} />
+                    <MoneyRow label="− Toll" value={`− ${rupees(trip.tollCost)}`} />
+                    <MoneyRow label="− Driver" value={`− ${rupees(trip.driverExpense)}`} />
+                    <MoneyRow label="− Other" value={`− ${rupees(trip.otherExpenses)}`} />
+                    <Divider sx={{ my: 1 }} />
+                    <MoneyRow
+                      label="Total expense"
+                      value={rupees(trip.totalExpense)}
+                      bold
+                    />
                   </Box>
                 </Box>
-              )}
 
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                <Chip size="small" variant="outlined" label={`${trip.routeCoordinateCount || routeCoords.length} route points`} />
-                {trip.routeDistanceKm > 0 && (
-                  <Chip size="small" variant="outlined" label={`OSRM ${trip.routeDistanceKm} km`} />
+                <Box
+                  sx={{
+                    p: 2,
+                    borderRadius: 3,
+                    bgcolor: alpha(profitable ? '#16a34a' : '#dc2626', 0.1),
+                    border: 1,
+                    borderColor: alpha(profitable ? '#16a34a' : '#dc2626', 0.3)
+                  }}
+                >
+                  <Stack direction="row" spacing={1.5}  sx={{ alignItems: 'center' }}>
+                    <ProfitIcon color={profitable ? 'success' : 'error'} />
+                    <Box>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                        {cancelled ? 'Loss (trip cancelled)' : 'Total profit'}
+                      </Typography>
+                      <Stack direction="row" spacing={1}  sx={{ alignItems: 'baseline' }}>
+                        <Typography variant="h5" sx={{ color: profitable ? 'success.main' : 'error.main' }}>
+                          {cancelled ? rupees(-cancelledLoss) : rupees(trip.profit)}
+                        </Typography>
+                        {!cancelled && (
+                          <Typography
+                            variant="body2"
+                            sx={{ color: profitable ? 'success.main' : 'error.main', fontWeight: 700 }}
+                          >
+                            {trip.profitPercent}%
+                          </Typography>
+                        )}
+                      </Stack>
+                    </Box>
+                  </Stack>
+                </Box>
+
+                <DriverSection trip={trip} />
+
+                <Stack spacing={0.75}>
+                  <Stack direction="row" spacing={1}  sx={{ alignItems: 'center' }}>
+                    <LocalShipping sx={{ fontSize: 16, color: 'text.secondary' }} />
+                    <Typography variant="caption" color="text.secondary">
+                      Mileage used {trip.mileageUsed} km/L · Fuel {trip.fuelType} @ {rupees(trip.fuelPrice)}/L
+                    </Typography>
+                  </Stack>
+                  {trip.cargo && (
+                    <Stack direction="row" spacing={1}  sx={{ alignItems: 'center' }}>
+                      <Toll sx={{ fontSize: 16, color: 'text.secondary' }} />
+                      <Typography variant="caption" color="text.secondary">
+                        Cargo {trip.cargo}
+                        {trip.cargoWeight ? ` · ${trip.cargoWeight} kg` : ''}
+                        {trip.customer ? ` · ${trip.customer}` : ''}
+                      </Typography>
+                    </Stack>
+                  )}
+                </Stack>
+
+                {cancelled && (
+                  <Alert severity="warning" variant="outlined" sx={{ borderRadius: 2.5 }}>
+                    <Typography variant="body2" fontWeight={700}>
+                      Trip cancelled
+                      {trip.cancelledAt
+                        ? ` on ${new Date(trip.cancelledAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                        : ''}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {trip.cancelReason || 'No reason recorded.'}
+                    </Typography>
+                  </Alert>
                 )}
-                {trip.startDate && (
-                  <Chip
-                    size="small"
-                    variant="outlined"
-                    label={`Started ${new Date(trip.startDate).toLocaleDateString('en-IN')}`}
-                  />
-                )}
-                {trip.completedDate && (
-                  <Chip
-                    size="small"
-                    variant="outlined"
-                    color="success"
-                    label={`Completed ${new Date(trip.completedDate).toLocaleDateString('en-IN')}`}
-                  />
+
+                {trip.notes && (
+                  <Alert severity="info" variant="outlined" sx={{ borderRadius: 2.5 }}>
+                    {trip.notes}
+                  </Alert>
                 )}
               </Stack>
-            </Box>
-          </Box>
-        )}
-      </DialogContent>
 
-      <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
-        <Button onClick={onClose} color="inherit">
-          Close
-        </Button>
-        {!finished && (
-          <>
-            {trip.status === 'Started' && (
+              {/* ---------------- RIGHT: map ---------------- */}
+              <Box sx={{ display: 'grid', gap: 1.5, alignContent: 'start' }}>
+                {trip.routeGeometry || trip.origin?.lat != null ? (
+                  <RouteMap
+                    origin={trip.origin?.lat != null ? { lat: trip.origin.lat, lng: trip.origin.lng, label: trip.origin.label } : null}
+                    destination={
+                      trip.destination?.lat != null
+                        ? { lat: trip.destination.lat, lng: trip.destination.lng, label: trip.destination.label }
+                        : null
+                    }
+                    routeCoords={routeCoords}
+                    height={340}
+                  />
+                ) : (
+                  <Box
+                    sx={{
+                      height: 340,
+                      display: 'grid',
+                      placeItems: 'center',
+                      textAlign: 'center',
+                      border: '1px dashed',
+                      borderColor: 'divider',
+                      borderRadius: 3,
+                      bgcolor: 'background.nested',
+                      px: 3
+                    }}
+                  >
+                    <Box>
+                      <LocalShipping sx={{ fontSize: 34, color: 'text.disabled', mb: 1 }} />
+                      <Typography variant="body2" fontWeight={700}>
+                        No route geometry
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        This trip was created from a manual distance, so no polyline was stored.
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Chip size="small" variant="outlined" label={`${trip.routeCoordinateCount || routeCoords.length} route points`} />
+                  {trip.routeDistanceKm > 0 && (
+                    <Chip size="small" variant="outlined" label={`Map ${trip.routeDistanceKm} km`} />
+                  )}
+                  {trip.startDate && (
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={`Started ${new Date(trip.startDate).toLocaleDateString('en-IN')}`}
+                    />
+                  )}
+                  {trip.completedDate && (
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      color="success"
+                      label={`Completed ${new Date(trip.completedDate).toLocaleDateString('en-IN')}`}
+                    />
+                  )}
+                </Stack>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
+          <Button onClick={onClose} color="inherit">
+            Close
+          </Button>
+          {!finished && (
+            <>
+              {onRequestCancel && (
+                <Button
+                  variant="outlined"
+                  color="error"
+                  onClick={() => onRequestCancel(trip)}
+                >
+                  Cancel trip
+                </Button>
+              )}
               <Button
-                variant="outlined"
-                color="error"
-                disabled={Boolean(updating)}
-                onClick={() => changeStatus('Cancelled')}
+                variant="contained"
+                color="success"
+                startIcon={<DoneAll />}
+                onClick={() => setCompleteOpen(true)}
               >
-                {updating === 'Cancelled' ? <CircularProgress size={16} sx={{ mr: 1 }} /> : null}
-                Cancel trip
+                Mark as completed
               </Button>
-            )}
-            {trip.status !== 'In Transit' && (
-              <Button
-                variant="outlined"
-                startIcon={<PlayArrow />}
-                disabled={Boolean(updating)}
-                onClick={() => changeStatus('In Transit')}
-              >
-                {updating === 'In Transit' ? <CircularProgress size={16} sx={{ mr: 1 }} /> : null}
-                Mark in transit
-              </Button>
-            )}
-            <Button
-              variant="contained"
-              color="success"
-              startIcon={<DoneAll />}
-              disabled={Boolean(updating)}
-              onClick={() => changeStatus('Completed')}
-            >
-              {updating === 'Completed' ? <CircularProgress size={16} color="inherit" sx={{ mr: 1 }} /> : null}
-              Mark as completed
-            </Button>
-          </>
-        )}
-        {finished && (
-          <Typography variant="caption" color="text.secondary">
-            This trip is {status.label.toLowerCase()} — the truck is back in the pool.
-          </Typography>
-        )}
-      </DialogActions>
-    </Dialog>
+            </>
+          )}
+          {finished && (
+            <Typography variant="caption" color="text.secondary">
+              This trip is {status.label.toLowerCase()} — the truck is back in the pool.
+            </Typography>
+          )}
+        </DialogActions>
+      </Dialog>
+
+      <CompleteTripDialog
+        open={completeOpen}
+        trip={trip}
+        busy={completeBusy}
+        busyAction={completeAction}
+        onClose={() => setCompleteOpen(false)}
+        onUpdate={editThenComplete}
+        onCompleteNow={completeNow}
+      />
+    </>
   );
 }

@@ -137,7 +137,9 @@ const eventNotifiers = {
       type: 'trip_cancelled',
       severity: 'warning',
       title: `Trip ${trip.tripId} cancelled`,
-      message: `${trip.from || '?'} → ${trip.to || '?'}.`,
+      message: trip.cancelReason
+        ? `${trip.from || '?'} → ${trip.to || '?'} — ${trip.cancelReason}`
+        : `${trip.from || '?'} → ${trip.to || '?'}.`,
       link: '/trips',
       tripId: trip._id,
       truckId: trip.truck,

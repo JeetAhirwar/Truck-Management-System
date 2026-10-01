@@ -121,12 +121,12 @@ const STATS = [
 const FEATURES = [
   { icon: DashboardIcon, title: 'Command center dashboard', text: 'Revenue, profit, distance, fleet health and alerts — one glance, no spreadsheets.' },
   { icon: NotificationsActive, title: 'Live alerts', text: 'Document expiry, FASTag low balance and maintenance reminders pushed in real-time to your inbox-like feed.' },
-  { icon: RouteIcon, title: 'Route & toll engine', text: 'Real OSRM distances with TollGuru toll estimates — profit calculated before you start moving.' },
+  { icon: RouteIcon, title: 'Route & toll engine', text: 'Real Map distances with toll-plaza counts — profit calculated before you start moving.' },
   { icon: Description, title: 'Document compliance', text: 'RC, insurance, PUC, fitness & permit tracking with expiry warnings so checks never fail.' },
   { icon: BuildCircle, title: 'Maintenance tracker', text: 'Overdue and due-next service watches keep every truck road-ready.' },
   { icon: Group, title: 'Driver management', text: 'Roster, licenses and truck assignments — driver follows the truck automatically.' },
   { icon: Sell, title: 'FASTag monitoring', text: 'Balance low? Escalated alerts before a toll gate ever blocks your truck.' },
-  { icon: Bolt, title: 'One-tap trip start', text: 'Price a route, hit start — the truck leaves the pool and status flows live.' },
+  { icon: Bolt, title: 'One-tap trip start', text: 'Estimate a route, hit start — the truck leaves the pool and status flows live.' },
 ];
 
 const VISUAL_FLOW = [
@@ -138,25 +138,25 @@ const VISUAL_FLOW = [
   },
   {
     n: '02', icon: RouteIcon,
-    title: 'Price the trip',
+    title: 'Estimate the trip',
     text: 'Pick from → to. Distance, tolls and profit show up before you move.',
     grad: ['#0ea5e9', '#6366f1'],
   },
   {
     n: '03', icon: RocketLaunch,
-    title: 'Hit start',
+    title: 'Start the trip',
     text: 'The trip goes live and your dashboard updates all by itself.',
     grad: ['#2563eb', '#7c3aed'],
   },
   {
     n: '04', icon: TrendingUp,
-    title: 'Track and earn',
-    text: 'Follow the trip live, close it and log exactly what you earned.',
+    title: 'Track live profits',
+    text: 'Follow the trip live, close it and log the exact profit.',
     grad: ['#0ea5e9', '#6366f1'],
   },
   {
     n: '05', icon: NotificationsActive,
-    title: 'Alerts on autopilot',
+    title: 'Alerts before trouble',
     text: 'Expired documents and low FASTag remind you — before they bite.',
     grad: ['#2563eb', '#7c3aed'],
   },

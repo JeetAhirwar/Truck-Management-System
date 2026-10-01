@@ -343,10 +343,14 @@ export default function Dashboard() {
   /* Newest-first straight from the API — no client-side reordering. */
   const trips = recentTrips;
   const hasTrips = trips.length > 0;
+  /* Cancelled trips never ran: they stay in the recent table below (with
+     their status) but are kept out of both charts, which plot real activity. */
+  const chartTrips = trips.filter((t) => t.status !== 'Cancelled');
+  const hasChartTrips = chartTrips.length > 0;
   /* Short axis labels (last 4 of the trip id) so 5 long "TRP-XXXXXXXX"
      strings do not collide; the full id stays in the tooltip + table. */
-  const chartLabels = trips.map((t) => String(t.tripId || t._id).slice(-4));
-  const tripNames = trips.map((t) => t.tripId || String(t._id).slice(-4));
+  const chartLabels = chartTrips.map((t) => String(t.tripId || t._id).slice(-4));
+  const tripNames = chartTrips.map((t) => t.tripId || String(t._id).slice(-4));
 
   /* Plain array, deliberately NOT useMemo: hooks cannot sit after the early
      returns above, and memoising a 4-item array was never worth it. */
@@ -618,27 +622,33 @@ export default function Dashboard() {
       >
         <Panel
           title="Revenue vs expenses"
-          subtitle={hasTrips ? 'Last 5 trips, newest last' : 'No trips recorded yet'}
+          subtitle={
+            hasChartTrips
+              ? `Last ${chartTrips.length} trips, newest last`
+              : hasTrips
+                ? 'Recent trips are all cancelled'
+                : 'No trips recorded yet'
+          }
           delay={0.2}
           action={<SoftChip tone={TONE.blue} label={`Profit ${inrCompact(profit)}`} />}
         >
-          {hasTrips ? (
+          {hasChartTrips ? (
             <>
               {/* The old version drew a third "Profit" bar next to revenue and
                   expenses, which doubled the bar count and halved the
                   readability. Net profit now lives in the header chip. */}
-              <Box role="img" aria-label={`Revenue versus expenses for the last ${trips.length} trips. Net profit ${inr(profit)}, ${margin} percent margin.`}>
+              <Box role="img" aria-label={`Revenue versus expenses for the last ${chartTrips.length} trips. Net profit ${inr(profit)}, ${margin} percent margin.`}>
                 <BarChart
                   height={288}
                   series={[
                     {
-                      data: trips.map((t) => Number(t.revenue || 0)),
+                      data: chartTrips.map((t) => Number(t.revenue || 0)),
                       label: 'Revenue',
                       color: TONE.blue,
                       valueFormatter: (v) => inr(v),
                     },
                     {
-                      data: trips.map((t) => Number(t.totalExpense ?? (Number(t.revenue || 0) - Number(t.profit || 0)))),
+                      data: chartTrips.map((t) => Number(t.totalExpense ?? (Number(t.revenue || 0) - Number(t.profit || 0)))),
                       label: 'Expenses',
                       color: TONE.amber,
                       valueFormatter: (v) => inr(v),
@@ -665,8 +675,12 @@ export default function Dashboard() {
           ) : (
             <EmptyState
               icon={ShowChart}
-              title="No trip revenue yet"
-              hint="Run the Trip Calculator and save a trip — revenue and expenses will chart here."
+              title={hasTrips ? 'Only cancelled trips recently' : 'No trip revenue yet'}
+              hint={
+                hasTrips
+                  ? 'Cancelled trips are excluded from earnings — complete a trip to chart revenue here.'
+                  : 'Run the Trip Calculator and save a trip — revenue and expenses will chart here.'
+              }
               action={
                 <Button component={RouterLink} to="/calculator" variant="contained" size="small" startIcon={<Calculate />}>
                   Open Trip Calculator
@@ -684,17 +698,17 @@ export default function Dashboard() {
             <SoftChip tone={TONE.amber} label={`${litres(s.totalFuelConsumed)} L this month`} />
           }
         >
-          {hasTrips ? (
+          {hasChartTrips ? (
             /* Fuel used to be a second series on a secondary axis. Fuel (tens of
                litres) crushed against distance (hundreds of km) is exactly what
                made this chart look almost blank. Distance is now the only
                series, and the fuel total moved to a chip. */
-            <Box role="img" aria-label={`Distance covered per trip for the last ${trips.length} trips, in kilometres.`}>
+            <Box role="img" aria-label={`Distance covered per trip for the last ${chartTrips.length} trips, in kilometres.`}>
               <LineChart
                 height={288}
                 series={[
                   {
-                    data: trips.map((t) => Number(t.distance || 0)),
+                    data: chartTrips.map((t) => Number(t.distance || 0)),
                     label: 'Distance (km)',
                     color: TONE.violet,
                     area: true,
@@ -711,8 +725,12 @@ export default function Dashboard() {
           ) : (
             <EmptyState
               icon={TrendingUp}
-              title="No distance data yet"
-              hint="Saved trips plot their distance here so you can spot long-haul vs short-haul patterns."
+              title={hasTrips ? 'No distance to show' : 'No distance data yet'}
+              hint={
+                hasTrips
+                  ? 'The recent trips were all cancelled, so no distance was covered.'
+                  : 'Saved trips plot their distance here so you can spot long-haul vs short-haul patterns.'
+              }
             />
           )}
         </Panel>
@@ -771,8 +789,12 @@ export default function Dashboard() {
                   </TableHead>
                   <TableBody>
                     {trips.map((t) => {
-                      const tripRevenue = Number(t.revenue || 0);
-                      const tripProfit = Number(t.profit || 0);
+                      const cancelled = t.status === 'Cancelled';
+                      // Cancelled trips earned nothing — only what was spent.
+                      const tripRevenue = cancelled ? 0 : Number(t.revenue || 0);
+                      const tripProfit = cancelled
+                        ? -Number(t.totalExpense || 0)
+                        : Number(t.profit || 0);
                       const tripMargin = tripRevenue > 0 ? Math.round((tripProfit / tripRevenue) * 100) : 0;
                       return (
                         <TableRow key={t._id} hover>
@@ -804,17 +826,31 @@ export default function Dashboard() {
                             {num(t.distance)} km
                           </TableCell>
                           <TableCell align="right" sx={{ display: { xs: 'none', sm: 'table-cell' }, whiteSpace: 'nowrap' }}>
-                            {inr(t.revenue)}
+                            <Typography
+                              variant="body2"
+                              sx={{ color: cancelled ? 'text.secondary' : undefined }}
+                            >
+                              {inr(tripRevenue)}
+                            </Typography>
                           </TableCell>
                           <TableCell align="right" sx={{ display: { xs: 'none', lg: 'table-cell' }, whiteSpace: 'nowrap' }}>
                             <Typography
                               variant="body2"
                               fontWeight={700}
-                              sx={{ color: tripProfit >= 0 ? 'success.main' : 'error.main' }}
+                              sx={{
+                                color: cancelled
+                                  ? 'text.disabled'
+                                  : tripProfit >= 0
+                                    ? 'success.main'
+                                    : 'error.main',
+                              }}
                             >
-                              {tripMargin}%
+                              {cancelled ? '—' : `${tripMargin}%`}
                             </Typography>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                            <Typography
+                              variant="caption"
+                              sx={{ display: 'block', color: cancelled ? 'error.main' : 'text.secondary' }}
+                            >
                               {inr(tripProfit)}
                             </Typography>
                           </TableCell>

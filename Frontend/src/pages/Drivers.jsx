@@ -26,6 +26,7 @@ import {
   People,
   Person,
   Refresh,
+  VisibilityOutlined,
 } from '@mui/icons-material';
 import api from '../utils/api';
 import {
@@ -37,6 +38,8 @@ import {
   StatCard,
   StatGrid,
 } from '../components/ui';
+import ViewToggle, { VIEW_LIST } from '../components/ViewToggle';
+import DriverDetailsModal from '../components/DriverDetailsModal';
 
 const empty = {
   name: '',
@@ -72,6 +75,10 @@ export default function Drivers() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
+  const [view, setView] = useState(VIEW_LIST);
+  const [sortBy, setSortBy] = useState('default');
+  // Driver whose read-only details dialog is open.
+  const [viewing, setViewing] = useState(null);
 
   const fetch = async () => {
     try {
@@ -148,11 +155,34 @@ export default function Drivers() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return drivers;
-    return drivers.filter(
-      (d) => d.name?.toLowerCase().includes(q) || d.mobile?.includes(q) || d.licenseNumber?.toLowerCase().includes(q)
-    );
-  }, [drivers, search]);
+    const list = !q
+      ? drivers
+      : drivers.filter(
+          (d) => d.name?.toLowerCase().includes(q) || d.mobile?.includes(q) || d.licenseNumber?.toLowerCase().includes(q)
+        );
+    if (sortBy === 'default') return list;
+    const arr = [...list];
+    const str = (v) => String(v || '');
+    switch (sortBy) {
+      case 'nameAsc':
+        arr.sort((a, b) => str(a.name).localeCompare(str(b.name)));
+        break;
+      case 'nameDesc':
+        arr.sort((a, b) => str(b.name).localeCompare(str(a.name)));
+        break;
+      case 'exp':
+        arr.sort((a, b) => (Number(b.experience) || 0) - (Number(a.experience) || 0));
+        break;
+      case 'status': {
+        const order = ['Available', 'On Trip', 'Inactive'];
+        arr.sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status));
+        break;
+      }
+      default:
+        break;
+    }
+    return arr;
+  }, [drivers, search, sortBy]);
 
   const assigned = drivers.filter((d) => d.assignedTruck).length;
 
@@ -205,11 +235,29 @@ export default function Drivers() {
         />
       </StatGrid>
 
-      <SearchField
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search name, mobile, license…"
-      />
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { xs: 'stretch', sm: 'center' } }}>
+        <SearchField
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search name, mobile, license…"
+          sx={{ flex: 1 }}
+        />
+        <TextField
+          select
+          size="small"
+          label="Sort by"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          sx={{ minWidth: 195 }}
+        >
+          <MenuItem value="default">Default (newest)</MenuItem>
+          <MenuItem value="nameAsc">Name (A→Z)</MenuItem>
+          <MenuItem value="nameDesc">Name (Z→A)</MenuItem>
+          <MenuItem value="exp">Experience (high first)</MenuItem>
+          <MenuItem value="status">Status</MenuItem>
+        </TextField>
+        <ViewToggle value={view} onChange={setView} />
+      </Stack>
 
       {filtered.length === 0 ? (
         <EmptyState
@@ -224,6 +272,84 @@ export default function Drivers() {
             ) : null
           }
         />
+      ) : view === VIEW_LIST ? (
+        <Stack spacing={1}>
+          {filtered.map((d) => (
+            <Card key={d._id} variant="outlined" sx={{ borderRadius: 1 }}>
+              <CardContent sx={{ p: '12px 16px !important', '&:last-child': { pb: '12px !important' } }}>
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={2}
+                  sx={{ alignItems: { xs: 'flex-start', sm: 'center' }, justifyContent: 'space-between' }}
+                >
+                  <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
+                    <Avatar
+                      variant="rounded"
+                      sx={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: '12px',
+                        bgcolor: (th) => (th.palette.mode === 'light' ? '#ede9fe' : 'rgba(124,58,237,0.2)'),
+                        color: '#7c3aed',
+                      }}
+                    >
+                      <Person fontSize="small" />
+                    </Avatar>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                        <Typography variant="subtitle2">{d.name}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {d.mobile}
+                        </Typography>
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+                        {[d.licenseNumber, d.licenseType].filter(Boolean).join(' · ')}
+                        {d.experience ? ` · ${d.experience} yrs` : ''}
+                        {` · ${d.assignedTruck?.truckNumber || 'Unassigned'}`}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                    <SoftChip status={d.status} />
+                    <FormControl size="small" sx={{ minWidth: 170 }}>
+                      <InputLabel id={`assign-list-${d._id}`}>Assign truck</InputLabel>
+                      <Select
+                        labelId={`assign-list-${d._id}`}
+                        label="Assign truck"
+                        value={d.assignedTruck?._id || ''}
+                        onChange={(e) => assign(d._id, e.target.value)}
+                      >
+                        <MenuItem value="">
+                          <em>Unassign</em>
+                        </MenuItem>
+                        {trucks.map((t) => (
+                          <MenuItem key={t._id} value={t._id}>
+                            {t.truckNumber}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    <Tooltip title="View details">
+                      <IconButton size="small" onClick={() => setViewing(d)} aria-label={`View ${d.name}`} sx={{ border: 1, borderColor: 'divider' }}>
+                        <VisibilityOutlined fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Edit">
+                      <IconButton size="small" onClick={() => openEdit(d)} aria-label={`Edit ${d.name}`} sx={{ border: 1, borderColor: 'divider' }}>
+                        <EditOutlined fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete driver">
+                      <IconButton size="small" color="error" onClick={() => del(d._id)} aria-label={`Delete ${d.name}`} sx={{ border: 1, borderColor: 'divider' }}>
+                        <DeleteOutlined fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
+                </Stack>
+              </CardContent>
+            </Card>
+          ))}
+        </Stack>
       ) : (
         <Grid container spacing={2.5}>
           {filtered.map((d, i) => (
@@ -284,6 +410,9 @@ export default function Drivers() {
                     <Divider sx={{ my: 2 }} />
 
                     <Stack direction="row" spacing={1}>
+                      <Button variant="outlined" size="small" startIcon={<VisibilityOutlined fontSize="small" />} onClick={() => setViewing(d)} sx={{ flex: 1 }}>
+                        View
+                      </Button>
                       <Button variant="outlined" size="small" startIcon={<EditOutlined fontSize="small" />} onClick={() => openEdit(d)} sx={{ flex: 1 }}>
                         Edit
                       </Button>
@@ -321,6 +450,16 @@ export default function Drivers() {
         </Box>
         <TextField label="Emergency Contact" value={form.emergencyContact} onChange={set('emergencyContact')} />
       </FormDialog>
+
+      <DriverDetailsModal
+        open={Boolean(viewing)}
+        driver={viewing ? drivers.find((x) => x._id === viewing._id) || viewing : null}
+        onClose={() => setViewing(null)}
+        onEdit={(d) => {
+          setViewing(null);
+          openEdit(d);
+        }}
+      />
     </Stack>
   );
 }

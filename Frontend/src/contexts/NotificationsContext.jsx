@@ -95,6 +95,12 @@ export function NotificationsProvider({ children }) {
   const [toast, setToast] = useState(null);
   const itemsRef = useRef([]);
 
+  // Mirror of `items` so imperative helpers (delete/clear) always see the
+  // latest list — markRead/markAllRead update state without touching the ref.
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
   const refresh = useCallback(async () => {
     if (!isAuthenticated) return;
     try {
@@ -141,6 +147,33 @@ export function NotificationsProvider({ children }) {
     } catch (e) {}
   }, []);
 
+  const removeNotification = useCallback(
+    async (id) => {
+      const target = itemsRef.current.find((n) => n._id === id);
+      const next = itemsRef.current.filter((n) => n._id !== id);
+      itemsRef.current = next;
+      setItems(next);
+      if (target && !target.read) setUnread((u) => Math.max(0, u - 1));
+      try {
+        await api.delete(`/notifications/${id}`);
+      } catch (e) {
+        refresh();
+      }
+    },
+    [refresh]
+  );
+
+  const clearAll = useCallback(async () => {
+    itemsRef.current = [];
+    setItems([]);
+    setUnread(0);
+    try {
+      await api.delete('/notifications');
+    } catch (e) {
+      refresh();
+    }
+  }, [refresh]);
+
   // Live socket (only when the environment allows it — see socket module).
   useEffect(() => {
     if (!isAuthenticated) return undefined;
@@ -178,8 +211,8 @@ export function NotificationsProvider({ children }) {
   }, [isAuthenticated, refresh]);
 
   const value = useMemo(
-    () => ({ items, unread, connected, refresh, markRead, markAllRead }),
-    [items, unread, connected, refresh, markRead, markAllRead]
+    () => ({ items, unread, connected, refresh, markRead, markAllRead, removeNotification, clearAll }),
+    [items, unread, connected, refresh, markRead, markAllRead, removeNotification, clearAll]
   );
 
   return (

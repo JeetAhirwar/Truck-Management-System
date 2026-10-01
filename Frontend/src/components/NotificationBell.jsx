@@ -10,15 +10,16 @@ import {
   ListItemButton,
   ListItemText,
   Menu,
+  Stack,
   Typography,
   Tooltip,
   alpha,
 } from '@mui/material';
-import { NotificationsNone, DoneAll } from '@mui/icons-material';
+import { NotificationsNone, DoneAll, Close, DeleteSweep } from '@mui/icons-material';
 import { useNotifications, typeMeta, timeAgo } from '../contexts/NotificationsContext';
 
 export default function NotificationBell() {
-  const { items, unread, connected, markRead, markAllRead } = useNotifications();
+  const { items, unread, connected, markRead, markAllRead, removeNotification, clearAll } = useNotifications();
   const [anchorEl, setAnchorEl] = useState(null);
   const navigate = useNavigate();
   const open = Boolean(anchorEl);
@@ -30,6 +31,17 @@ export default function NotificationBell() {
     if (!n.read) markRead(n._id);
     closeMenu();
     if (n.link) navigate(n.link);
+  };
+
+  const handleDelete = (e, n) => {
+    e.stopPropagation();
+    removeNotification(n._id);
+  };
+
+  const handleClearAll = () => {
+    if (!window.confirm(`Clear all ${items.length} notifications? This can't be undone.`)) return;
+    clearAll();
+    closeMenu();
   };
 
   return (
@@ -64,10 +76,19 @@ export default function NotificationBell() {
               {connected ? '● realtime' : 'refreshing'} · {unread} unread
             </Typography>
           </Box>
-          {unread > 0 && (
-            <Button size="small" startIcon={<DoneAll fontSize="small" />} onClick={markAllRead}>
-              Mark all read
-            </Button>
+          {items.length > 0 && (
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+              {unread > 0 && (
+                <Button size="small" startIcon={<DoneAll fontSize="small" />} onClick={markAllRead}>
+                  Mark all read
+                </Button>
+              )}
+              <Tooltip title="Clear all">
+                <IconButton size="small" aria-label="Clear all notifications" onClick={handleClearAll}>
+                  <DeleteSweep fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Stack>
           )}
         </Box>
         <Divider />
@@ -133,6 +154,21 @@ export default function NotificationBell() {
                   {!n.read && (
                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'error.main', mt: 1, flexShrink: 0 }} />
                   )}
+                  <Tooltip title="Delete">
+                    <IconButton
+                      size="small"
+                      aria-label={`Delete notification: ${n.title}`}
+                      onClick={(e) => handleDelete(e, n)}
+                      sx={{
+                        mt: 0.25,
+                        flexShrink: 0,
+                        color: 'text.disabled',
+                        '&:hover': { color: 'error.main', bgcolor: (t) => alpha(t.palette.error.main, 0.1) },
+                      }}
+                    >
+                      <Close sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </Tooltip>
                 </ListItemButton>
               );
             })

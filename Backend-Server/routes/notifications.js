@@ -62,6 +62,30 @@ router.patch('/read-all', async (req, res) => {
   }
 });
 
+// Remove a single notification (scoped to what this user's feed can see).
+router.delete('/:id', async (req, res) => {
+  try {
+    const doc = await Notification.findOneAndDelete({
+      _id: req.params.id,
+      ...{ $or: scopeFor(req) },
+    });
+    if (!doc) return res.status(404).json({ error: 'Notification not found' });
+    res.json({ deleted: 1, _id: doc._id });
+  } catch (err) {
+    res.status(422).json({ error: err.message });
+  }
+});
+
+// Clear the whole feed for this user.
+router.delete('/', async (req, res) => {
+  try {
+    const { deletedCount } = await Notification.deleteMany({ $or: scopeFor(req) });
+    res.json({ deleted: deletedCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Dev-only self-test: fires a notification through the normal pipeline so you
 // can verify the real-time push (bell badge + snackbar) without touching data.
 router.post('/test', async (req, res) => {

@@ -56,6 +56,7 @@ if (isLocalStorage) {
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/trucks', require('./routes/trucks'));
+app.use('/api/vehicles', require('./routes/vehicles'));
 app.use('/api/drivers', require('./routes/drivers'));
 app.use('/api/documents', require('./routes/documents'));
 app.use('/api/trips', require('./routes/trips'));
